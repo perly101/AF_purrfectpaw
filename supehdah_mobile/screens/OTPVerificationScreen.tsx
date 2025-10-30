@@ -102,12 +102,28 @@ export default function OTPVerificationScreen({ route }: OTPVerificationScreenPr
           { 
             text: 'OK', 
             onPress: () => {
-              navigation.dispatch(
-                CommonActions.reset({
-                  index: 0,
-                  routes: [{ name: 'PersonalTabs' }]
-                })
-              );
+              // After successful verification, route to Login so the user can sign in
+              try {
+                // @ts-ignore
+                const globalNav = (global as any).navigationRef;
+                if (globalNav && typeof globalNav.dispatch === 'function') {
+                  globalNav.dispatch(CommonActions.reset({ index: 0, routes: [{ name: 'Login' }] }));
+                  return;
+                }
+
+                // Otherwise dispatch at the top-most parent
+                let top: any = navigation as any;
+                let p = navigation.getParent ? navigation.getParent() : null;
+                while (p) {
+                  top = p;
+                  p = p.getParent ? p.getParent() : null;
+                }
+
+                (top ?? navigation).dispatch(CommonActions.reset({ index: 0, routes: [{ name: 'Login' }] }));
+              } catch (e) {
+                console.error('Failed to reset navigation to Login after OTP, fallback navigate', e);
+                (navigation as any).navigate('Login');
+              }
             }
           }
         ]

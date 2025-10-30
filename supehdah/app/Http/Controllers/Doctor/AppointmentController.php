@@ -110,22 +110,42 @@ class AppointmentController extends Controller
         $appointment->status = $request->status;
         $appointment->save();
         
-        // Send SMS notification when doctor confirms appointment
+        // Enhanced debugging and SMS notification when doctor confirms appointment
+        Log::info('🔍 DOCTOR STATUS UPDATE DEBUG', [
+            'appointment_id' => $appointment->id,
+            'old_status' => $oldStatus,
+            'new_status' => $request->status,
+            'has_phone' => !empty($appointment->owner_phone),
+            'phone' => $appointment->owner_phone,
+            'will_send_sms' => ($request->status === 'confirmed' && $oldStatus !== 'confirmed' && $appointment->owner_phone)
+        ]);
+        
         if ($request->status === 'confirmed' && $oldStatus !== 'confirmed' && $appointment->owner_phone) {
+            Log::info('🚀 DOCTOR CONFIRMING APPOINTMENT - SENDING SMS IMMEDIATELY', [
+                'appointment_id' => $appointment->id,
+                'patient_phone' => $appointment->owner_phone,
+                'time' => now()->format('H:i:s')
+            ]);
+            
             try {
                 $smsService = app(SmsService::class);
                 
-                // Get clinic information
+                // Get clinic information with eager loading
+                $appointment->load(['clinic', 'doctor']);
                 $clinic = $appointment->clinic;
                 
-                // Prepare appointment data for SMS
+                // Prepare comprehensive appointment data for SMS with complete information
+                $doctorName = $appointment->doctor ? $appointment->doctor->name : ($doctor->name ?? 'Available Doctor');
+                $clinicName = $clinic ? $clinic->clinic_name : 'PurrfectPaw Veterinary Clinic';
+                
                 $appointmentData = [
-                    'clinic_name' => $clinic ? $clinic->clinic_name : 'AutoRepair Clinic',
+                    'clinic_name' => $clinicName,
                     'appointment_date' => $appointment->appointment_date ? 
-                        \Carbon\Carbon::parse($appointment->appointment_date)->format('F j, Y') : '',
-                    'appointment_time' => $appointment->formatted_time ?? '',
-                    'doctor_name' => $doctor->name ?? 'Available Doctor',
-                    'pet_name' => $appointment->owner_name ?? 'your pet'
+                        \Carbon\Carbon::parse($appointment->appointment_date)->format('F j, Y') : 'TBD',
+                    'appointment_time' => $appointment->formatted_time ?: 
+                        ($appointment->appointment_time ? \Carbon\Carbon::parse($appointment->appointment_time)->format('g:i A') : 'TBD'),
+                    'doctor_name' => $doctorName,
+                    'pet_name' => $appointment->owner_name ?: 'your pet'
                 ];
                 
                 $result = $smsService->sendAppointmentConfirmation($appointment->owner_phone, $appointmentData);
@@ -134,7 +154,10 @@ class AppointmentController extends Controller
                     Log::info('Doctor appointment confirmation SMS sent successfully', [
                         'appointment_id' => $appointment->id,
                         'doctor_id' => $doctor->id,
-                        'phone' => $appointment->owner_phone
+                        'doctor_name' => $appointmentData['doctor_name'],
+                        'clinic_name' => $appointmentData['clinic_name'],
+                        'phone' => $appointment->owner_phone,
+                        'message_id' => $result['data']['message_id'] ?? null
                     ]);
                 } else {
                     Log::error('Failed to send doctor appointment confirmation SMS', [
@@ -199,12 +222,89 @@ class AppointmentController extends Controller
         if ($request->action === 'accept') {
             $appointment->status = 'confirmed';
             $message = 'Appointment accepted successfully';
+            
+            // Enhanced debugging for accept action
+            Log::info('🔍 DOCTOR ACCEPT/DECLINE DEBUG', [
+                'appointment_id' => $appointment->id,
+                'action' => $request->action,
+                'has_phone' => !empty($appointment->owner_phone),
+                'phone' => $appointment->owner_phone,
+                'will_send_sms' => !empty($appointment->owner_phone)
+            ]);
+            
+            // Send SMS notification when doctor accepts appointment
+            if ($appointment->owner_phone) {
+                Log::info('🚀 DOCTOR ACCEPTING APPOINTMENT - SENDING SMS IMMEDIATELY', [
+                    'appointment_id' => $appointment->id,
+                    'patient_phone' => $appointment->owner_phone,
+                    'time' => now()->format('H:i:s')
+                ]);
+                
+                try {
+                    $smsService = app(SmsService::class);
+                    $appointment->load(['clinic']);
+                    $clinic = $appointment->clinic;
+                    
+                    // Enhanced appointment data with complete information
+                    $doctorName = $doctor->name ?? 'Available Doctor';
+                    $clinicName = $clinic ? $clinic->clinic_name : 'PurrfectPaw Veterinary Clinic';
+                    
+                    $appointmentData = [
+                        'clinic_name' => $clinicName,
+                        'appointment_date' => $appointment->appointment_date ? 
+                            \Carbon\Carbon::parse($appointment->appointment_date)->format('F j, Y') : 'TBD',
+                        'appointment_time' => $appointment->formatted_time ?: 
+                            ($appointment->appointment_time ? \Carbon\Carbon::parse($appointment->appointment_time)->format('g:i A') : 'TBD'),
+                        'doctor_name' => $doctorName,
+                        'pet_name' => $appointment->owner_name ?: 'your pet'
+                    ];
+                    
+                    $result = $smsService->sendAppointmentConfirmation($appointment->owner_phone, $appointmentData);
+                    
+                    if ($result['success']) {
+                        Log::info('Doctor acceptance SMS sent successfully', [
+                            'appointment_id' => $appointment->id,
+                            'doctor_id' => $doctor->id,
+                            'phone' => $appointment->owner_phone
+                        ]);
+                    }
+                } catch (\Exception $e) {
+                    Log::error('SMS error during doctor acceptance: ' . $e->getMessage());
+                }
+            }
         } else {
             $appointment->status = 'cancelled';
             // Store cancellation reason in the notes field as JSON
             $cancellationData = ['cancellation_reason' => 'Declined by doctor', 'declined_at' => now()->format('Y-m-d H:i:s')];
             $appointment->notes = json_encode($cancellationData);
             $message = 'Appointment declined successfully';
+            
+            // Send SMS notification when doctor declines appointment
+            if ($appointment->owner_phone) {
+                try {
+                    $smsService = app(SmsService::class);
+                    $appointment->load(['clinic']);
+                    $clinic = $appointment->clinic;
+                    
+                    // Enhanced cancellation data with doctor information
+                    $doctorName = $doctor->name ?? 'Available Doctor';
+                    $clinicName = $clinic ? $clinic->clinic_name : 'PurrfectPaw Veterinary Clinic';
+                    
+                    $appointmentData = [
+                        'clinic_name' => $clinicName,
+                        'appointment_date' => $appointment->appointment_date ? 
+                            \Carbon\Carbon::parse($appointment->appointment_date)->format('F j, Y') : 'TBD',
+                        'appointment_time' => $appointment->formatted_time ?: 
+                            ($appointment->appointment_time ? \Carbon\Carbon::parse($appointment->appointment_time)->format('g:i A') : 'TBD'),
+                        'doctor_name' => $doctorName,
+                        'pet_name' => $appointment->owner_name ?: 'your pet'
+                    ];
+                    
+                    $smsService->sendAppointmentCancellation($appointment->owner_phone, $appointmentData);
+                } catch (\Exception $e) {
+                    Log::error('SMS error during doctor decline: ' . $e->getMessage());
+                }
+            }
         }
         
         $appointment->save();
@@ -293,5 +393,84 @@ class AppointmentController extends Controller
         
         return redirect()->route('doctor.appointments.index')
             ->with('success', 'Consultation completed and notes saved successfully');
+    }
+
+    /**
+     * Send SMS notification manually for any appointment
+     *
+     * @param int $id
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function sendSmsNotification($id)
+    {
+        // Get the current doctor
+        $doctor = Doctor::where('user_id', Auth::id())->firstOrFail();
+        
+        // Get the appointment, ensuring it belongs to this doctor
+        $appointment = Appointment::where('doctor_id', $doctor->id)
+            ->findOrFail($id);
+
+        if (!$appointment->owner_phone) {
+            return redirect()->back()->with('error', 'No phone number available for this appointment');
+        }
+
+        Log::info('🚀 MANUAL SMS TRIGGER BY DOCTOR', [
+            'appointment_id' => $appointment->id,
+            'doctor_id' => $doctor->id,
+            'patient_phone' => $appointment->owner_phone,
+            'time' => now()->format('H:i:s'),
+            'trigger' => 'MANUAL_BUTTON'
+        ]);
+
+        try {
+            $smsService = app(SmsService::class);
+            
+            // Get clinic information with eager loading
+            $appointment->load(['clinic', 'doctor']);
+            $clinic = $appointment->clinic;
+            
+            // Prepare comprehensive appointment data for SMS with complete details
+            $doctorName = $appointment->doctor ? $appointment->doctor->name : ($doctor->name ?? 'Available Doctor');
+            $clinicName = $clinic ? $clinic->clinic_name : 'PurrfectPaw Veterinary Clinic';
+            
+            $appointmentData = [
+                'clinic_name' => $clinicName,
+                'appointment_date' => $appointment->appointment_date ? 
+                    \Carbon\Carbon::parse($appointment->appointment_date)->format('F j, Y') : 'TBD',
+                'appointment_time' => $appointment->formatted_time ?: 
+                    ($appointment->appointment_time ? \Carbon\Carbon::parse($appointment->appointment_time)->format('g:i A') : 'TBD'),
+                'doctor_name' => $doctorName,
+                'pet_name' => $appointment->owner_name ?: 'your pet'
+            ];
+            
+            $result = $smsService->sendAppointmentConfirmation($appointment->owner_phone, $appointmentData);
+            
+            if ($result['success']) {
+                Log::info('✅ MANUAL SMS SENT SUCCESSFULLY', [
+                    'appointment_id' => $appointment->id,
+                    'doctor_id' => $doctor->id,
+                    'phone' => $appointment->owner_phone,
+                    'message_id' => $result['data']['message_id'] ?? null
+                ]);
+                
+                return redirect()->back()->with('success', 'SMS notification sent successfully to ' . $appointment->owner_phone . ' (Message ID: ' . ($result['data']['message_id'] ?? 'N/A') . ')');
+            } else {
+                Log::error('❌ MANUAL SMS FAILED', [
+                    'appointment_id' => $appointment->id,
+                    'error' => $result['error'] ?? 'Unknown error',
+                    'phone' => $appointment->owner_phone
+                ]);
+                
+                return redirect()->back()->with('error', 'Failed to send SMS: ' . ($result['error'] ?? 'Unknown error'));
+            }
+        } catch (\Exception $e) {
+            Log::error('❌ MANUAL SMS EXCEPTION', [
+                'appointment_id' => $appointment->id,
+                'exception' => $e->getMessage(),
+                'phone' => $appointment->owner_phone
+            ]);
+            
+            return redirect()->back()->with('error', 'SMS service error: ' . $e->getMessage());
+        }
     }
 }

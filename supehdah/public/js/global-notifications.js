@@ -12,8 +12,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize the global notification system
     initGlobalNotificationSystem();
     
-    // Start polling for notifications if user is a clinic admin
-    if (isClinicUser()) {
+    // Start polling for notifications if user is a clinic admin or doctor
+    if (isClinicUser() || isDoctorUser()) {
         startGlobalNotificationPolling();
     }
 });
@@ -58,6 +58,17 @@ function isClinicUser() {
 }
 
 /**
+ * Check if current user is a doctor user
+ */
+function isDoctorUser() {
+    // Check if current page is under doctor routes or has doctor-specific elements
+    const currentPath = window.location.pathname;
+    return currentPath.startsWith('/doctor') || 
+           document.body.classList.contains('doctor-layout') ||
+           document.querySelector('[data-role="doctor"]') !== null;
+}
+
+/**
  * Start polling for new notifications
  */
 function startGlobalNotificationPolling() {
@@ -78,12 +89,18 @@ function startGlobalNotificationPolling() {
  * Poll server for new notifications
  */
 function pollForNewNotifications() {
-    if (!isClinicUser()) return;
+    if (!isClinicUser() && !isDoctorUser()) return;
     
     const lastCheckedTime = window.globalNotificationSystem.settings.lastCheckedTime;
     const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     
-    fetch('/check-new-notifications?since=' + encodeURIComponent(lastCheckedTime), {
+    // Determine the correct endpoint based on user role
+    let endpoint = '/check-new-notifications';
+    if (isDoctorUser()) {
+        endpoint = '/doctor/notifications/check';
+    }
+    
+    fetch(endpoint + '?last_check=' + encodeURIComponent(lastCheckedTime), {
         headers: {
             'Accept': 'application/json',
             'X-CSRF-TOKEN': csrfToken
@@ -96,8 +113,8 @@ function pollForNewNotifications() {
             processNewNotifications(data.notifications);
             
             // Update last checked time
-            window.globalNotificationSystem.settings.lastCheckedTime = data.now;
-            localStorage.setItem('lastNotificationCheck', data.now);
+            window.globalNotificationSystem.settings.lastCheckedTime = data.last_check || data.now;
+            localStorage.setItem('lastNotificationCheck', data.last_check || data.now);
         }
     })
     .catch(error => {

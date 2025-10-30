@@ -173,7 +173,7 @@
                 </div>
             </li>
             
-            <li>
+            <!-- <li>
                 <a href="{{ route('dashboard') }}"
                    class="nav-item group flex items-center px-4 py-3 rounded-lg hover:text-white transition-all duration-200">
                     <div class="mr-3 flex items-center justify-center w-6 h-6 text-blue-400 group-hover:text-blue-300 transition-colors">
@@ -183,7 +183,7 @@
                     </div>
                     <span class="font-medium">Main Dashboard</span>
                 </a>
-            </li>
+            </li> -->
             
             <li>
                 <form method="POST" action="{{ route('logout') }}" class="w-full">

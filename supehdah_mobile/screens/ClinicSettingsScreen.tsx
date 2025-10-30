@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, ActivityIndicator, Image, FlatList } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, CommonActions } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
 import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
@@ -109,12 +109,34 @@ export default function ClinicSettingsScreen() {
   const handleExitClinic = async () => {
     Alert.alert('Exit Clinic View', 'Return to Personal Mode?', [
       { text: 'Cancel', style: 'cancel' },
-      {
+          {
         text: 'Exit',
         style: 'destructive',
         onPress: async () => {
           await AsyncStorage.removeItem('selectedClinic');
-          navigation.reset({ index: 0, routes: [{ name: 'PersonalTabs' }] });
+          // Try to reset at the top-most navigator so the RESET action is handled
+          // Prefer global navigationRef (set in App.tsx) if available, otherwise walk parents
+          try {
+            // @ts-ignore
+            const globalNav = (global as any).navigationRef;
+            if (globalNav && typeof globalNav.dispatch === 'function') {
+              globalNav.dispatch(CommonActions.reset({ index: 0, routes: [{ name: 'PersonalTabs' }] }));
+              return;
+            }
+
+            // Walk up to the top-most parent and dispatch there
+            let top: any = navigation as any;
+            let p = navigation.getParent ? navigation.getParent() : null;
+            while (p) {
+              top = p;
+              p = p.getParent ? p.getParent() : null;
+            }
+
+            (top ?? navigation).dispatch(CommonActions.reset({ index: 0, routes: [{ name: 'PersonalTabs' }] }));
+          } catch (e) {
+            console.error('Failed to reset navigation to PersonalTabs, falling back to navigate', e);
+            (navigation as any).navigate('PersonalTabs');
+          }
         },
       },
     ]);

@@ -490,7 +490,7 @@ public function updateUser(Request $request, $id)
 {
     $user = User::findOrFail($id);
 
-    $request->validate([
+        $request->validate([
         'first_name' => 'required|string|max:255',
         'middle_name' => 'nullable|string|max:255',
         'last_name' => 'required|string|max:255',
@@ -499,7 +499,7 @@ public function updateUser(Request $request, $id)
         'gender' => 'nullable|in:female,male,prefer_not_say',
         'birthday' => 'nullable|date',
         'password' => 'nullable|min:6|confirmed',
-        'role' => 'required|in:user,admin,clinic',
+            'role' => 'required|in:user,admin,clinic,doctor',
     ]);
 
     $user->first_name = $request->first_name;
@@ -552,7 +552,7 @@ public function bulkAction(Request $request)
         case 'change_role':
             $newRole = $request->input('new_role');
             
-            if (!in_array($newRole, ['user', 'admin', 'clinic'])) {
+            if (!in_array($newRole, ['user', 'admin', 'clinic', 'doctor'])) {
                 return redirect()->back()->with('error', 'Invalid role selected.');
             }
             

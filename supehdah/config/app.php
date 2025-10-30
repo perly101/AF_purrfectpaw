@@ -236,4 +236,17 @@ return [
 
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | SMS Configuration
+    |--------------------------------------------------------------------------
+    |
+    | SMS service configuration for sending notifications
+    |
+    */
+
+    'sms_enabled' => env('SMS_ENABLED', true),
+    'sms_api_key' => env('SMS_API_KEY', '6dff29a20c4ad21b0ff30725e15c23d0'),
+    'sms_sender_name' => env('SMS_SENDER_NAME', 'AutoRepair'),
+
 ];

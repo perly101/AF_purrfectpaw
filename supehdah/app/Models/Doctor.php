@@ -66,4 +66,20 @@ class Doctor extends Model
             'not_accepting' => 'Not Accepting Appointments',
         ][$this->availability_status] ?? 'Unknown';
     }
+
+    /**
+     * Get the notifications for this doctor.
+     */
+    public function notifications()
+    {
+        return $this->morphMany(Notification::class, 'notifiable');
+    }
+
+    /**
+     * Get the doctor's name (for compatibility)
+     */
+    public function getNameAttribute()
+    {
+        return $this->getFullNameAttribute();
+    }
 }

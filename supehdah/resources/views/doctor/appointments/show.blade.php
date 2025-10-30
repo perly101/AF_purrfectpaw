@@ -1,4 +1,9 @@
 <x-app-layout>
+    <!-- Doctor Notification System -->
+    <div id="global-notification-container" class="fixed top-4 right-4 z-50 space-y-2" style="max-width: 350px;"></div>
+    <div id="global-popup-notification-container" class="fixed bottom-4 right-4 z-50 space-y-2" style="max-width: 350px;"></div>
+    <audio id="global-notification-sound" src="{{ asset('sounds/noti.mp3') }}" preload="auto"></audio>
+    
     <div class="py-12 bg-gray-100 min-h-screen">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-6">
             
@@ -115,6 +120,21 @@
                                     <input type="hidden" name="status" value="completed">
                                     <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition duration-150">
                                         Complete Consultation
+                                    </button>
+                                </form>
+                            @endif
+
+                            {{-- Manual SMS Button - Available for any appointment with phone --}}
+                            @if($appointment->owner_phone)
+                                <form method="POST" action="{{ route('doctor.appointments.send-sms', $appointment->id) }}" class="inline-block">
+                                    @csrf
+                                    <button type="submit" 
+                                            class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition duration-150 flex items-center space-x-2"
+                                            onclick="return confirm('Send SMS notification to {{ $appointment->owner_phone }}?')">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                                        </svg>
+                                        <span>Send SMS Notification</span>
                                     </button>
                                 </form>
                             @endif
@@ -327,4 +347,10 @@
             </div>
         </div>
     </div>
+
+    <!-- Doctor Role Indicator for JS -->
+    <div class="hidden" data-role="doctor"></div>
+
+    <!-- Global Notification System Script -->
+    <script src="{{ asset('js/global-notifications.js') }}"></script>
 </x-app-layout>

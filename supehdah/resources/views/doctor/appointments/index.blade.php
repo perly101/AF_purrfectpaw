@@ -1,4 +1,9 @@
 <x-app-layout>
+    <!-- Doctor Notification System -->
+    <div id="global-notification-container" class="fixed top-4 right-4 z-50 space-y-2" style="max-width: 350px;"></div>
+    <div id="global-popup-notification-container" class="fixed bottom-4 right-4 z-50 space-y-2" style="max-width: 350px;"></div>
+    <audio id="global-notification-sound" src="{{ asset('sounds/noti.mp3') }}" preload="auto"></audio>
+    
     <div class="py-12 bg-gray-100 min-h-screen">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-6">
             
@@ -150,4 +155,10 @@
             </div>
         </div>
     </div>
+
+    <!-- Doctor Role Indicator for JS -->
+    <div class="hidden" data-role="doctor"></div>
+
+    <!-- Global Notification System Script -->
+    <script src="{{ asset('js/global-notifications.js') }}"></script>
 </x-app-layout>

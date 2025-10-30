@@ -171,32 +171,39 @@ class AppointmentController extends Controller
             try {
                 $smsService = app(SmsService::class);
                 
-                // Prepare appointment data for SMS
+                // Eager load doctor relationship for proper name
+                $appointment->load('doctor');
+                
+                // Prepare comprehensive appointment data for SMS
                 $appointmentData = [
-                    'clinic_name' => $clinic->clinic_name ?? 'AutoRepair Clinic',
+                    'clinic_name' => $clinic->clinic_name ?? 'PurrfectPaw Veterinary Clinic',
                     'appointment_date' => $appointment->appointment_date ? 
-                        \Carbon\Carbon::parse($appointment->appointment_date)->format('F j, Y') : '',
-                    'appointment_time' => $appointment->formatted_time ?? '',
+                        \Carbon\Carbon::parse($appointment->appointment_date)->format('F j, Y') : 'TBD',
+                    'appointment_time' => $appointment->formatted_time ?: 
+                        ($appointment->appointment_time ? \Carbon\Carbon::parse($appointment->appointment_time)->format('g:i A') : 'TBD'),
                     'doctor_name' => $appointment->doctor ? $appointment->doctor->name : 'Available Doctor',
-                    'pet_name' => $appointment->owner_name ?? 'your pet'
+                    'pet_name' => $appointment->owner_name ?: 'your pet'
                 ];
                 
                 $result = $smsService->sendAppointmentConfirmation($appointment->owner_phone, $appointmentData);
                 
                 if ($result['success']) {
-                    Log::info('Appointment confirmation SMS sent successfully', [
+                    Log::info('Clinic appointment confirmation SMS sent successfully', [
                         'appointment_id' => $appointment->id,
-                        'phone' => $appointment->owner_phone
+                        'clinic_name' => $appointmentData['clinic_name'],
+                        'doctor_name' => $appointmentData['doctor_name'],
+                        'phone' => $appointment->owner_phone,
+                        'message_id' => $result['data']['message_id'] ?? null
                     ]);
                 } else {
-                    Log::error('Failed to send appointment confirmation SMS', [
+                    Log::error('Failed to send clinic appointment confirmation SMS', [
                         'appointment_id' => $appointment->id,
                         'phone' => $appointment->owner_phone,
                         'error' => $result['error'] ?? 'Unknown error'
                     ]);
                 }
             } catch (\Exception $e) {
-                Log::error('SMS service error during appointment confirmation: ' . $e->getMessage(), [
+                Log::error('SMS service error during clinic appointment confirmation: ' . $e->getMessage(), [
                     'appointment_id' => $appointment->id,
                     'phone' => $appointment->owner_phone
                 ]);
@@ -261,11 +268,26 @@ class AppointmentController extends Controller
         
         $appointment->save();
         
-        // Send notification to the doctor about the new patient assignment
+        // Send notification to the doctor about the new appointment assignment
         $doctor = Doctor::find($request->doctor_id);
-        if ($doctor && $doctor->user && $appointment->user) {
-            $notificationService = app(NotificationService::class);
-            $notificationService->notifyDoctorPatientAssigned($doctor->user, $appointment->user);
+        if ($doctor) {
+            try {
+                $notificationService = app(NotificationService::class);
+                $appointment->load(['clinic']); // Ensure clinic relationship is loaded
+                $notificationService->notifyDoctorAppointmentAssigned($doctor, $appointment);
+                
+                Log::info('Doctor appointment assignment notification sent', [
+                    'doctor_id' => $doctor->id,
+                    'appointment_id' => $appointment->id,
+                    'clinic_id' => $clinic->id
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Failed to send doctor appointment assignment notification', [
+                    'error' => $e->getMessage(),
+                    'doctor_id' => $doctor->id,
+                    'appointment_id' => $appointment->id
+                ]);
+            }
         }
         
         return redirect()->route('clinic.appointments.show', $id)

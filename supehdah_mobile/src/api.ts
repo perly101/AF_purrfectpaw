@@ -3,14 +3,18 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
+import { ROUTES } from './routes';
+import { CommonActions } from '@react-navigation/native';
 
-// Use only a single fixed API base URL
+// Use a list of base URLs including the dev server port and emulator alias.
+// Order: LAN IP (with port), Android emulator alias, localhost for simulator/web.
 const API_BASE_URLS = [
-  'http://192.168.254.105:8000/api', // Local network - update with your actual IP
-  'http://localhost:8000/api'    // For web debugging
+  'http://192.168.254.143:8000/api', // Local network (your machine) - Laravel dev server
+  'http://10.0.2.2:8000/api',        // Android emulator -> maps to host machine localhost:8000
+  'http://localhost:8000/api'        // iOS simulator or web
 ];
 
-// Use the fixed base URL - no need to detect or store it anymore
+// Use the first working base URL. By default we start with the LAN IP.
 const API_BASE_URL = API_BASE_URLS[0];
 
 // Create API instance with our fixed URL
@@ -53,10 +57,18 @@ export const handleAuthFailure = async () => {
   if (navigationRef) {
     console.log('🔄 Redirecting to login screen');
     // Use reset navigation to go to login
-    navigationRef.reset({
-      index: 0,
-      routes: [{ name: 'Login' }],
-    });
+    // Use dispatch to reset via the navigation container (safer across versions)
+    try {
+      if (typeof navigationRef.dispatch === 'function') {
+        navigationRef.dispatch(CommonActions.reset({ index: 0, routes: [{ name: 'Login' }] }));
+      } else if (typeof navigationRef.reset === 'function') {
+        navigationRef.reset({ index: 0, routes: [{ name: 'Login' }] });
+      } else {
+        console.error('Navigation reference does not support reset/dispatch');
+      }
+    } catch (e) {
+      console.error('Failed to reset navigation via navigationRef:', e);
+    }
     
     // Show an alert to inform the user
     setTimeout(() => {
@@ -189,8 +201,6 @@ export const getAvailableSlots = async (clinicId: number, date: string) => {
     throw error;
   }
 };
-
-import { ROUTES } from './routes';
 
 export const getAvailabilitySummary = async (clinicId: number): Promise<AvailabilitySummary> => {
   try {

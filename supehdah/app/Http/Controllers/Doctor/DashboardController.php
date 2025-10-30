@@ -57,10 +57,10 @@ class DashboardController extends Controller
             ->whereIn('status', ['completed', 'closed'])
             ->count();
             
-        // Use the correct column name (notes instead of consultation_notes)
+        // Count completed appointments that don't yet have consultation notes
         $pendingConsultations = Appointment::where('doctor_id', $doctor->id)
             ->where('status', 'completed')
-            ->whereNull('notes')
+            ->whereNull('consultation_notes')
             ->count();
             
         return view('doctor.dashboard', compact(

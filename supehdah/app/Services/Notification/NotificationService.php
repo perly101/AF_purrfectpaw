@@ -121,6 +121,90 @@ class NotificationService
     }
 
     /**
+     * Send notification to a doctor when an appointment is assigned
+     * 
+     * @param \App\Models\Doctor $doctor The doctor receiving the notification
+     * @param \App\Models\Appointment $appointment The appointment being assigned
+     * @return \App\Models\Notification|null
+     */
+    public function notifyDoctorAppointmentAssigned($doctor, $appointment)
+    {
+        try {
+            Log::info('Creating notification for doctor appointment assignment', [
+                'doctor_id' => $doctor->id,
+                'appointment_id' => $appointment->id
+            ]);
+            
+            // Use owner_name if patient relation doesn't exist or patient has no name
+            $patientName = $appointment->owner_name ?? 'A patient';
+            
+            // Get clinic info
+            $clinicName = 'Clinic';
+            if ($appointment->clinic) {
+                $clinicName = $appointment->clinic->clinic_name ?? $appointment->clinic->name ?? 'Clinic';
+            }
+            
+            $data = [
+                'title' => 'New Appointment Assignment',
+                'body' => "You have been assigned a new appointment with {$patientName} at {$clinicName}",
+                'appointment_id' => $appointment->id,
+                'patient_name' => $patientName,
+                'clinic_name' => $clinicName,
+                'appointment_date' => $appointment->appointment_date ?? $appointment->created_at,
+                'appointment_time' => $appointment->appointment_time ?? 'TBD'
+            ];
+            
+            if (isset($appointment->appointment_date)) {
+                $data['body'] .= " on " . date('F j, Y', strtotime($appointment->appointment_date));
+                if (isset($appointment->appointment_time)) {
+                    $data['body'] .= " at " . date('g:i A', strtotime($appointment->appointment_time));
+                }
+            }
+            
+            // Get doctor's device token if available (from associated user)
+            $deviceToken = null;
+            if ($doctor->user) {
+                $deviceToken = $doctor->user->device_token;
+            }
+            
+            Log::info('Preparing to create doctor notification', [
+                'type' => 'doctor_appointment_assigned',
+                'doctor_id' => $doctor->id,
+                'has_device_token' => !empty($deviceToken)
+            ]);
+            
+            $notification = $this->createNotification(
+                'doctor_appointment_assigned',
+                $doctor,
+                $data,
+                $deviceToken
+            );
+            
+            if ($notification) {
+                Log::info('Successfully created doctor appointment notification', [
+                    'notification_id' => $notification->id,
+                    'doctor_id' => $doctor->id
+                ]);
+            } else {
+                Log::error('Failed to create doctor appointment notification', [
+                    'doctor_id' => $doctor->id,
+                    'appointment_id' => $appointment->id
+                ]);
+            }
+            
+            return $notification;
+        } catch (\Exception $e) {
+            Log::error('Error creating doctor appointment notification', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'doctor_id' => $doctor->id ?? 'unknown',
+                'appointment_id' => $appointment->id ?? 'unknown'
+            ]);
+            return null;
+        }
+    }
+
+    /**
      * Send notification to a clinic when an appointment is marked as completed
      * 
      * @param \App\Models\Clinic|\App\Models\ClinicInfo $clinic The clinic receiving the notification
@@ -324,6 +408,10 @@ class NotificationService
                 case 'doctor_assigned_patient':
                     $title = 'New Patient Assigned';
                     $message = $data['message'] ?? 'A new patient has been assigned to you';
+                    break;
+                case 'doctor_appointment_assigned':
+                    $title = 'New Appointment Assignment';
+                    $message = $data['body'] ?? 'You have been assigned a new appointment';
                     break;
                 case 'clinic_new_appointment':
                     $title = 'New Appointment';

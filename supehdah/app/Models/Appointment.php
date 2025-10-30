@@ -14,7 +14,9 @@ class Appointment extends Model
         'appointment_date',
         'appointment_time',
         'status',
-        'notes'
+        'notes',
+        // Keep the physical column name available too
+        'consultation_notes'
     ];
     
     // Setting the appropriate date fields according to README specifications
@@ -42,6 +44,23 @@ class Appointment extends Model
             ]);
             return null;
         }
+    }
+
+    /**
+     * Accessor for legacy `notes` attribute. Some code still uses `$appointment->notes`.
+     * Map it to the actual `consultation_notes` column.
+     */
+    public function getNotesAttribute()
+    {
+        return $this->attributes['consultation_notes'] ?? null;
+    }
+
+    /**
+     * Mutator for legacy `notes` attribute. Writes into `consultation_notes` column.
+     */
+    public function setNotesAttribute($value)
+    {
+        $this->attributes['consultation_notes'] = $value;
     }
     
     /**

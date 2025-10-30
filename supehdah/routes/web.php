@@ -20,6 +20,7 @@ use App\Http\Controllers\Doctor\DashboardController as DoctorDashboardController
 use App\Http\Controllers\Doctor\AppointmentController as DoctorAppointmentController;
 use App\Http\Controllers\Doctor\PatientController as DoctorPatientController;
 use App\Http\Controllers\Doctor\ProfileController as DoctorProfileController;
+use App\Http\Controllers\Doctor\NotificationController as DoctorNotificationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -233,6 +234,7 @@ Route::middleware(['auth', 'role:doctor'])->prefix('doctor')->name('doctor.')->g
     Route::post('/appointments/{id}/accept-decline', [DoctorAppointmentController::class, 'acceptDecline'])->name('appointments.accept-decline');
     Route::post('/appointments/{id}/start-consultation', [DoctorAppointmentController::class, 'startConsultation'])->name('appointments.start-consultation');
     Route::post('/appointments/{id}/complete-consultation', [DoctorAppointmentController::class, 'completeConsultation'])->name('appointments.complete-consultation');
+    Route::post('/appointments/{id}/send-sms', [DoctorAppointmentController::class, 'sendSmsNotification'])->name('appointments.send-sms');
     
     // Patients
     Route::get('/patients', [DoctorPatientController::class, 'index'])->name('patients.index');
@@ -243,6 +245,14 @@ Route::middleware(['auth', 'role:doctor'])->prefix('doctor')->name('doctor.')->g
     Route::get('/profile', [DoctorProfileController::class, 'index'])->name('profile.index');
     Route::put('/profile', [DoctorProfileController::class, 'updateProfile'])->name('profile.update');
     Route::put('/profile/password', [DoctorProfileController::class, 'updatePassword'])->name('profile.update-password');
+    
+    // Notifications
+    Route::get('/notifications', [DoctorNotificationController::class, 'index'])->name('notifications.index');
+    Route::post('/notifications/{id}/mark-as-read', [DoctorNotificationController::class, 'markAsRead'])->name('notifications.mark-as-read');
+    Route::post('/notifications/mark-all-as-read', [DoctorNotificationController::class, 'markAllAsRead'])->name('notifications.mark-all-as-read');
+    Route::delete('/notifications/{id}', [DoctorNotificationController::class, 'destroy'])->name('notifications.destroy');
+    Route::get('/notifications/check', [DoctorNotificationController::class, 'checkNewNotifications'])->name('notifications.check');
+    Route::get('/notifications/count', [DoctorNotificationController::class, 'getNotificationCount'])->name('notifications.count');
 });
 
 // ========== PUBLIC APPOINTMENT ROUTES ==========
