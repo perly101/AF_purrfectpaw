@@ -613,7 +613,7 @@ export default function ClinicAppointmentsScreen({ route, navigation }: ClinicAp
               </Text>
               <TouchableOpacity 
                 style={styles.changeDateButton}
-                onPress={() => navigation?.navigate('ClinicCalendar')}
+                onPress={() => navigation?.navigate('ClinicCalendar', { clinicId })}
               >
                 <Text style={styles.changeDateButtonText}>Change Date/Time</Text>
                 <Ionicons name="calendar" size={16} color={PURPLE} />

@@ -20,7 +20,7 @@ import {
 } from 'react-native';
 import { API } from '../src/api';
 import { OtpApi } from '../src/otpApi';
-import { useNavigation, CommonActions } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -166,15 +166,10 @@ export default function RegisterScreen(): React.ReactElement {
       if (isEmailVerified) {
         // Email is already verified, navigate to dashboard
         Alert.alert('Success', 'Registration successful!');
-        // Dispatch reset to parent (root) navigator if available to ensure the action is handled
-        // After registration + verified email, send user to the Login page so they can sign in.
-        const parent = navigation.getParent();
-        (parent ?? navigation).dispatch(
-          CommonActions.reset({
-            index: 0,
-            routes: [{ name: 'Login' }],
-          })
-        );
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'PersonalTabs' }],
+        });
       } else {
         // Email needs verification, navigate to OTP verification screen
         if (res.data?.otp_sent === false) {

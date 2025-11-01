@@ -1,6 +1,8 @@
+import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API } from '../api';
+import Constants from 'expo-constants';
 
 // Define notification data type
 interface NotificationData {
@@ -20,19 +22,21 @@ declare global {
   var navigationRef: any;
 }
 
-// Check if running in Expo Go
-const isExpoGo = (): boolean => {
-  try {
-    // @ts-ignore
-    return !!global.__expo?.AppLoader;
-  } catch {
-    return false;
-  }
-};
+/**
+ * Configure notification behavior
+ */
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
 
 /**
- * Safe notification service that disables expo-notifications in Expo Go
- * but keeps all other functionality intact
+ * Notification service to handle all notification-related functionality
  */
 export class NotificationService {
   // Static property to store listeners
@@ -40,318 +44,252 @@ export class NotificationService {
     foregroundSubscription?: NotificationSubscription;
     responseSubscription?: NotificationSubscription;
   } | null = null;
-
   /**
    * Initialize notifications and set up event listeners
-   * Safe for Expo Go - will skip notification setup but keep other functionality
    * @returns Promise<void>
    */
-  static async initialize(): Promise<void> {
+  static async initialize() {
     try {
-      console.log('🔔 NotificationService: Initializing...');
-      
-      if (isExpoGo()) {
-        console.log('🚫 NotificationService: Expo Go detected - skipping notification setup');
+      // Check permissions first
+      const permissionResult = await this.requestPermissions();
+      if (!permissionResult.granted) {
+        console.log('Notification permission not granted');
         return;
       }
 
-      // Only import and setup notifications if NOT in Expo Go
-      const Notifications = await import('expo-notifications');
-      
-      // Configure notification behavior
-      Notifications.setNotificationHandler({
-        handleNotification: async () => ({
-          shouldShowAlert: true,
-          shouldPlaySound: true,
-          shouldSetBadge: true,
-          shouldShowBanner: true,
-          shouldShowList: true,
-        }),
-      });
+      // Get push token
+      const token = await this.getNotificationToken();
+      if (token) {
+        console.log('Push token:', token);
+        await this.savePushToken(token);
+      }
 
-      // Request permissions
-      await this.requestPermissions();
-      
-      // Set up listeners
-      this.setupNotificationListeners();
-      
-      console.log('✅ NotificationService: Initialized successfully');
+      // Set notification event listeners
+      this.setNotificationListeners();
+
     } catch (error) {
-      console.log('🚫 NotificationService: Skipped due to error (likely Expo Go):', error);
+      console.error('Error initializing notifications:', error);
     }
   }
 
   /**
    * Request notification permissions
-   * Safe for Expo Go - will skip if notifications not available
+   * @returns Promise<Notifications.NotificationPermissionsStatus>
    */
-  static async requestPermissions(): Promise<boolean> {
-    try {
-      if (isExpoGo()) {
-        console.log('🚫 NotificationService: Skipping permissions in Expo Go');
-        return false;
-      }
+  static async requestPermissions() {
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
 
-      const Notifications = await import('expo-notifications');
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      
-      let finalStatus = existingStatus;
-      
-      if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-      
-      if (finalStatus !== 'granted') {
-        console.log('🚫 NotificationService: Permission not granted');
-        return false;
-      }
-      
-      console.log('✅ NotificationService: Permissions granted');
-      return true;
+    // Only ask if permissions have not already been determined
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+
+    // Return the permissions status
+    return { granted: finalStatus === 'granted' };
+  }
+
+  /**
+   * Get Expo push notification token
+   * @returns Promise<string | undefined>
+   */
+  static async getNotificationToken() {
+    // Check if the app is running in Expo environment
+    if (!Constants.expoConfig) {
+      console.log('Not running in Expo environment, skipping push token');
+      return undefined;
+    }
+
+    // Get push token
+    try {
+      const { data: token } = await Notifications.getExpoPushTokenAsync({
+        projectId: Constants.expoConfig.extra?.eas?.projectId,
+      });
+      return token;
     } catch (error) {
-      console.log('🚫 NotificationService: Permission request failed:', error);
-      return false;
+      console.error('Error getting push token:', error);
+      return undefined;
+    }
+  }
+
+  /**
+   * Save push token to server
+   * @param token Push token to save
+   */
+  static async savePushToken(token: string) {
+    try {
+      // Save to local storage first
+      await AsyncStorage.setItem('pushToken', token);
+
+      // Only send to server if user is authenticated
+      const authToken = await AsyncStorage.getItem('token');
+      if (authToken) {
+        await API.post('/device-token', { device_token: token });
+        console.log('Push token saved to server');
+      } else {
+        console.log('User not authenticated, token saved locally only');
+      }
+    } catch (error) {
+      console.error('Error saving push token:', error);
     }
   }
 
   /**
    * Set up notification listeners
-   * Safe for Expo Go - will skip if notifications not available
    */
-  static async setupNotificationListeners(): Promise<void> {
-    try {
-      if (isExpoGo()) {
-        console.log('🚫 NotificationService: Skipping listeners in Expo Go');
-        return;
-      }
+  static setNotificationListeners() {
+    // When a notification is received while the app is in the foreground
+    const foregroundSubscription = Notifications.addNotificationReceivedListener(notification => {
+      console.log('Notification received in foreground:', notification);
+      // You can show a custom in-app notification here if needed
+    });
 
-      const Notifications = await import('expo-notifications');
+    // When a user taps on a notification (app in background or closed)
+    const responseSubscription = Notifications.addNotificationResponseReceivedListener(response => {
+      console.log('Notification response received:', response);
+      const { notification } = response;
+      const data = notification.request.content.data as NotificationData;
       
-      // Clear existing listeners
-      this.cleanup();
+      // Handle notification tap based on the notification type
+      this.handleNotificationTap(data);
+    });
 
-      // Listen for notifications received while the app is foregrounded
-      const foregroundSubscription = Notifications.addNotificationReceivedListener((notification) => {
-        console.log('🔔 Foreground notification received:', notification);
-        this.handleForegroundNotification(notification.request.content.data as NotificationData);
-      });
-
-      // Listen for user interactions with notifications
-      const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
-        console.log('🔔 Notification response received:', response);
-        this.handleNotificationResponse(response.notification.request.content.data as NotificationData);
-      });
-
-      // Store listeners for cleanup
-      this.listeners = {
-        foregroundSubscription,
-        responseSubscription,
-      };
-
-      console.log('✅ NotificationService: Listeners set up');
-    } catch (error) {
-      console.log('🚫 NotificationService: Listener setup failed:', error);
-    }
+    // Store the listeners so they can be cleaned up if needed
+    this.listeners = {
+      foregroundSubscription,
+      responseSubscription,
+    };
   }
 
   /**
-   * Handle notification received in foreground
+   * Handle notification tap based on notification type
+   * @param data Notification data
    */
-  static handleForegroundNotification(data: NotificationData): void {
-    try {
-      console.log('🔔 Handling foreground notification:', data);
-      // Handle the notification data here
-      // You can show in-app alerts or update UI
-    } catch (error) {
-      console.log('❌ Error handling foreground notification:', error);
+  static handleNotificationTap(data: NotificationData) {
+    // Extract navigation reference from global API
+    const navigationRef = global.navigationRef;
+    if (!navigationRef) {
+      console.log('Navigation ref not available, cannot navigate');
+      return;
     }
-  }
 
-  /**
-   * Handle notification tap/response
-   */
-  static handleNotificationResponse(data: NotificationData): void {
     try {
-      console.log('🔔 Handling notification response:', data);
+      // Handle different notification types
+      const notificationType = data.type;
+      const appointmentId = data.appointment_id;
       
-      // Navigate based on notification type
-      if (data.type === 'appointment' && data.appointment_id) {
-        this.navigateToAppointment(data.appointment_id);
+      switch (notificationType) {
+        case 'doctor_assigned_patient':
+          navigationRef.navigate('DoctorPatients');
+          break;
+          
+        case 'clinic_new_appointment':
+          if (appointmentId) {
+            navigationRef.navigate('ClinicAppointmentDetails', { id: appointmentId });
+          } else {
+            navigationRef.navigate('ClinicAppointments');
+          }
+          break;
+          
+        case 'clinic_appointment_completed':
+          if (appointmentId) {
+            navigationRef.navigate('ClinicAppointmentDetails', { id: appointmentId });
+          } else {
+            navigationRef.navigate('ClinicAppointments');
+          }
+          break;
+          
+        default:
+          // For unknown notification types, navigate to notifications screen
+          navigationRef.navigate('Notifications');
       }
     } catch (error) {
-      console.log('❌ Error handling notification response:', error);
+      console.error('Error handling notification tap:', error);
     }
   }
 
   /**
-   * Navigate to appointment details
+   * Get all notifications from the server
+   * @returns Promise<Array<Notification>>
    */
-  static navigateToAppointment(appointmentId: string | number): void {
+  static async fetchNotifications() {
     try {
-      if (global.navigationRef) {
-        // Navigate to appointment details
-        global.navigationRef.navigate('AppointmentDetails', { id: appointmentId });
-      }
+      const response = await API.get('/notifications');
+      return response.data.data;
     } catch (error) {
-      console.log('❌ Navigation error:', error);
+      console.error('Error fetching notifications:', error);
+      return [];
     }
   }
 
   /**
-   * Register device for push notifications
-   * Safe for Expo Go - will skip registration
+   * Mark a notification as read
+   * @param id Notification ID
    */
-  static async registerForPushNotifications(): Promise<string | null> {
+  static async markAsRead(id: number | string) {
     try {
-      if (isExpoGo()) {
-        console.log('🚫 NotificationService: Skipping push registration in Expo Go');
-        return null;
-      }
-
-      const Notifications = await import('expo-notifications');
-      
-      // Check if permissions are granted
-      const hasPermissions = await this.requestPermissions();
-      if (!hasPermissions) {
-        console.log('🚫 Push notifications: No permissions');
-        return null;
-      }
-
-      // Get push token
-      const Constants = await import('expo-constants');
-      const token = await Notifications.getExpoPushTokenAsync({
-        projectId: Constants.default.expoConfig?.extra?.eas?.projectId,
-      });
-
-      console.log('📱 Push token obtained:', token.data);
-      
-      // Send token to your server
-      await this.sendTokenToServer(token.data);
-      
-      return token.data;
+      await API.post(`/notifications/${id}/read`);
+      return true;
     } catch (error) {
-      console.log('❌ Error registering for push notifications:', error);
-      return null;
+      console.error('Error marking notification as read:', error);
+      return false;
     }
   }
 
   /**
-   * Send push token to server
+   * Mark all notifications as read
    */
-  static async sendTokenToServer(token: string): Promise<void> {
+  static async markAllAsRead() {
     try {
-      await API.post('/user/push-token', { token });
-      console.log('✅ Push token sent to server');
+      await API.post('/notifications/read-all');
+      return true;
     } catch (error) {
-      console.log('❌ Error sending push token to server:', error);
+      console.error('Error marking all notifications as read:', error);
+      return false;
     }
   }
 
   /**
-   * Schedule a local notification
-   * Safe for Expo Go - will skip scheduling
+   * Delete a notification
+   * @param id Notification ID
    */
-  static async scheduleLocalNotification(
-    title: string,
-    body: string,
-    data: NotificationData = {},
-    trigger?: any
-  ): Promise<string | null> {
+  static async deleteNotification(id: number | string) {
     try {
-      if (isExpoGo()) {
-        console.log('🚫 NotificationService: Skipping local notification in Expo Go');
-        return null;
-      }
-
-      const Notifications = await import('expo-notifications');
-      
-      const identifier = await Notifications.scheduleNotificationAsync({
-        content: {
-          title,
-          body,
-          data,
-        },
-        trigger: trigger || null, // null means immediate
-      });
-
-      console.log('✅ Local notification scheduled:', identifier);
-      return identifier;
+      await API.delete(`/notifications/${id}`);
+      return true;
     } catch (error) {
-      console.log('❌ Error scheduling local notification:', error);
-      return null;
+      console.error('Error deleting notification:', error);
+      return false;
     }
   }
 
   /**
-   * Cancel a scheduled notification
-   * Safe for Expo Go - will skip cancellation
+   * Get unread notification count
+   * @returns Promise<number>
    */
-  static async cancelNotification(identifier: string): Promise<void> {
+  static async getUnreadCount() {
     try {
-      if (isExpoGo()) {
-        console.log('🚫 NotificationService: Skipping notification cancel in Expo Go');
-        return;
-      }
-
-      const Notifications = await import('expo-notifications');
-      await Notifications.cancelScheduledNotificationAsync(identifier);
-      console.log('✅ Notification cancelled:', identifier);
+      const response = await API.get('/notifications/unread-count');
+      return response.data.count;
     } catch (error) {
-      console.log('❌ Error cancelling notification:', error);
-    }
-  }
-
-  /**
-   * Get badge count
-   * Safe for Expo Go - will return 0
-   */
-  static async getBadgeCount(): Promise<number> {
-    try {
-      if (isExpoGo()) {
-        return 0;
-      }
-
-      const Notifications = await import('expo-notifications');
-      return await Notifications.getBadgeCountAsync();
-    } catch (error) {
-      console.log('❌ Error getting badge count:', error);
+      console.error('Error getting unread notification count:', error);
       return 0;
     }
   }
 
   /**
-   * Set badge count
-   * Safe for Expo Go - will skip setting
+   * Clean up notification listeners
    */
-  static async setBadgeCount(count: number): Promise<void> {
-    try {
-      if (isExpoGo()) {
-        console.log('🚫 NotificationService: Skipping badge count in Expo Go');
-        return;
-      }
-
-      const Notifications = await import('expo-notifications');
-      await Notifications.setBadgeCountAsync(count);
-      console.log('✅ Badge count set:', count);
-    } catch (error) {
-      console.log('❌ Error setting badge count:', error);
+  static cleanUp() {
+    if (this.listeners?.foregroundSubscription) {
+      this.listeners.foregroundSubscription.remove();
     }
-  }
-
-  /**
-   * Clean up listeners
-   */
-  static cleanup(): void {
-    try {
-      if (this.listeners) {
-        this.listeners.foregroundSubscription?.remove();
-        this.listeners.responseSubscription?.remove();
-        this.listeners = null;
-        console.log('✅ NotificationService: Listeners cleaned up');
-      }
-    } catch (error) {
-      console.log('❌ Error cleaning up listeners:', error);
+    
+    if (this.listeners?.responseSubscription) {
+      this.listeners.responseSubscription.remove();
     }
+    
+    this.listeners = null;
   }
 }

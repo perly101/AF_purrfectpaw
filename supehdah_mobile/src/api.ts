@@ -3,18 +3,14 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
-import { ROUTES } from './routes';
-import { CommonActions } from '@react-navigation/native';
 
-// Use a list of base URLs including the dev server port and emulator alias.
-// Order: LAN IP (with port), Android emulator alias, localhost for simulator/web.
+// Use only a single fixed API base URL
 const API_BASE_URLS = [
-  'http://192.168.254.143:8000/api', // Local network (your machine) - Laravel dev server
-  'http://10.0.2.2:8000/api',        // Android emulator -> maps to host machine localhost:8000
-  'http://localhost:8000/api'        // iOS simulator or web
+  'http://192.168.254.102:8000/api', // Local network - update with your actual IP
+  'http://localhost:8000/api'    // For web debugging
 ];
 
-// Use the first working base URL. By default we start with the LAN IP.
+// Use the fixed base URL - no need to detect or store it anymore
 const API_BASE_URL = API_BASE_URLS[0];
 
 // Create API instance with our fixed URL
@@ -57,18 +53,10 @@ export const handleAuthFailure = async () => {
   if (navigationRef) {
     console.log('🔄 Redirecting to login screen');
     // Use reset navigation to go to login
-    // Use dispatch to reset via the navigation container (safer across versions)
-    try {
-      if (typeof navigationRef.dispatch === 'function') {
-        navigationRef.dispatch(CommonActions.reset({ index: 0, routes: [{ name: 'Login' }] }));
-      } else if (typeof navigationRef.reset === 'function') {
-        navigationRef.reset({ index: 0, routes: [{ name: 'Login' }] });
-      } else {
-        console.error('Navigation reference does not support reset/dispatch');
-      }
-    } catch (e) {
-      console.error('Failed to reset navigation via navigationRef:', e);
-    }
+    navigationRef.reset({
+      index: 0,
+      routes: [{ name: 'Login' }],
+    });
     
     // Show an alert to inform the user
     setTimeout(() => {
@@ -201,6 +189,8 @@ export const getAvailableSlots = async (clinicId: number, date: string) => {
     throw error;
   }
 };
+
+import { ROUTES } from './routes';
 
 export const getAvailabilitySummary = async (clinicId: number): Promise<AvailabilitySummary> => {
   try {
@@ -404,6 +394,192 @@ const getEndTimeFromSlot = (startTime: string, durationMinutes: number = 30): st
   const endMinutes = date.getMinutes().toString().padStart(2, '0');
   
   return `${endHours}:${endMinutes}`;
+};
+
+// Enhanced availability API functions
+
+// Get detailed availability settings
+export const getAvailabilitySettings = async (clinicId: number) => {
+  try {
+    console.log(`Fetching availability settings for clinic ${clinicId}`);
+    const response = await API.get(ROUTES.CLINICS.AVAILABILITY.SETTINGS(clinicId));
+    console.log('Successfully fetched availability settings');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching availability settings:', error);
+    // Return default settings as fallback
+    return {
+      slot_duration: 30,
+      advance_booking_days: 30,
+      same_day_booking: true,
+      timezone: 'Asia/Manila',
+      default_start_time: '09:00:00',
+      default_end_time: '17:00:00'
+    };
+  }
+};
+
+// Get daily schedule for a specific day of week
+export const getDailySchedule = async (clinicId: number, dayOfWeek: number) => {
+  try {
+    console.log(`Fetching daily schedule for clinic ${clinicId}, day ${dayOfWeek}`);
+    const response = await API.get(ROUTES.CLINICS.AVAILABILITY.DAILY_SCHEDULE(clinicId, dayOfWeek));
+    console.log('Successfully fetched daily schedule');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching daily schedule:', error);
+    // Return default schedule as fallback
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const isClosed = dayOfWeek === 0; // Sunday closed by default
+    return {
+      day_of_week: dayOfWeek,
+      day_name: dayNames[dayOfWeek],
+      is_available: !isClosed,
+      start_time: isClosed ? null : '09:00:00',
+      end_time: isClosed ? null : '17:00:00'
+    };
+  }
+};
+
+// Get all weekly schedules
+export const getWeeklySchedule = async (clinicId: number) => {
+  try {
+    console.log(`Fetching weekly schedule for clinic ${clinicId}`);
+    const schedulePromises = [0, 1, 2, 3, 4, 5, 6].map(day => 
+      getDailySchedule(clinicId, day).catch(() => null)
+    );
+    const schedules = await Promise.all(schedulePromises);
+    
+    const weeklySchedule: any = {};
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    
+    schedules.forEach((schedule, index) => {
+      if (schedule) {
+        weeklySchedule[dayNames[index]] = {
+          start: schedule.start_time,
+          end: schedule.end_time,
+          isAvailable: schedule.is_available
+        };
+      } else {
+        weeklySchedule[dayNames[index]] = { 
+          start: null, 
+          end: null, 
+          isAvailable: false 
+        };
+      }
+    });
+    
+    console.log('Successfully fetched weekly schedule');
+    return weeklySchedule;
+  } catch (error) {
+    console.error('Error fetching weekly schedule:', error);
+    // Return default weekly schedule as fallback
+    return {
+      sunday: { start: null, end: null, isAvailable: false },
+      monday: { start: '09:00:00', end: '17:00:00', isAvailable: true },
+      tuesday: { start: '09:00:00', end: '17:00:00', isAvailable: true },
+      wednesday: { start: '09:00:00', end: '17:00:00', isAvailable: true },
+      thursday: { start: '09:00:00', end: '17:00:00', isAvailable: true },
+      friday: { start: '09:00:00', end: '17:00:00', isAvailable: true },
+      saturday: { start: '09:00:00', end: '14:00:00', isAvailable: true }
+    };
+  }
+};
+
+// Get break times
+export const getBreakTimes = async (clinicId: number) => {
+  try {
+    console.log(`Fetching break times for clinic ${clinicId}`);
+    const response = await API.get(ROUTES.CLINICS.AVAILABILITY.BREAKS(clinicId));
+    console.log('Successfully fetched break times');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching break times:', error);
+    // Return default break times as fallback
+    return [
+      {
+        id: 1,
+        name: 'Lunch Break',
+        start_time: '12:00:00',
+        end_time: '13:00:00',
+        days: [1, 2, 3, 4, 5, 6], // Monday to Saturday
+        is_active: true
+      }
+    ];
+  }
+};
+
+// Get special dates and holidays
+export const getSpecialDates = async (clinicId: number) => {
+  try {
+    console.log(`Fetching special dates for clinic ${clinicId}`);
+    const response = await API.get(ROUTES.CLINICS.AVAILABILITY.SPECIAL_DATES(clinicId));
+    console.log('Successfully fetched special dates');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching special dates:', error);
+    // Return empty array as fallback
+    return [];
+  }
+};
+
+// Get calendar dates with availability
+export const getCalendarDates = async (clinicId: number) => {
+  try {
+    console.log(`Fetching calendar dates for clinic ${clinicId}`);
+    const response = await API.get(ROUTES.CLINICS.AVAILABILITY.CALENDAR_DATES(clinicId));
+    console.log('Successfully fetched calendar dates');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching calendar dates:', error);
+    // Return empty array as fallback
+    return [];
+  }
+};
+
+// Get clinic form fields configuration
+export const getClinicFields = async (clinicId: number) => {
+  try {
+    console.log(`Fetching clinic fields for clinic ${clinicId}`);
+    const response = await API.get(ROUTES.CLINICS.FIELDS(clinicId));
+    console.log('Successfully fetched clinic fields');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching clinic fields:', error);
+    // Return empty array as fallback instead of throwing error
+    return [];
+  }
+};
+
+// Enhanced availability summary that combines all data
+export const getComprehensiveAvailability = async (clinicId: number) => {
+  try {
+    console.log(`Fetching comprehensive availability data for clinic ${clinicId}`);
+    
+    // Fetch all availability data in parallel
+    const [settings, weeklySchedule, breaks, specialDates, fields] = await Promise.all([
+      getAvailabilitySettings(clinicId),
+      getWeeklySchedule(clinicId),
+      getBreakTimes(clinicId),
+      getSpecialDates(clinicId),
+      getClinicFields(clinicId)
+    ]);
+
+    const comprehensiveData = {
+      settings,
+      weeklySchedule,
+      breaks,
+      specialDates,
+      fields,
+      timestamp: new Date().getTime()
+    };
+
+    console.log('Successfully fetched comprehensive availability data');
+    return comprehensiveData;
+  } catch (error) {
+    console.error('Error fetching comprehensive availability:', error);
+    throw error;
+  }
 };
 
 export interface AppointmentBookingData {

@@ -232,7 +232,6 @@ class SmsService
         // Build professional appointment confirmation message
         $message = "=== APPOINTMENT CONFIRMED ===\n\n";
         $message .= "CLINIC: {$clinicName}\n";
-        $message .= "========================================\n\n";
         $message .= "APPOINTMENT DETAILS:\n";
         $message .= "Date: {$appointmentDate}\n";
         $message .= "Time: {$appointmentTime}\n";
@@ -242,7 +241,6 @@ class SmsService
         $message .= "({$clinicName})\n\n";
         $message .= "PREPARATION CHECKLIST:\n";
         $message .= "- Arrive 15 minutes prior to appointment\n";
-        $message .= "- Bring vaccination certificates\n";
         $message .= "- Bring medical history records\n";
         $message .= "- List any current medications\n";
         $message .= "- Prepare questions for the veterinarian\n\n";

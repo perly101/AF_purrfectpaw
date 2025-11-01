@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from 'react';
+﻿﻿import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -683,7 +683,7 @@ const ClinicCalendarScreen = ({ route, navigation }: ClinicCalendarScreenProps) 
                 })()}
 
                 <View style={[styles.badge, styles.badgeMuted, (availabilityInfo.bookedSlots > 0 || timeSlots.some((slot) => slot.isBooked || slot.status === 'booked')) && styles.badgeActive]}>
-                  <Text style={[styles.badgeNumber, (availabilityInfo.bookedSlots > 0 || timeSlots.some((slot) => slot.isBooked || slot.status === 'booked')) && styles.badgeActiveText]}>{availabilityInfo.bookedSlots || timeSlots.filter((slot) => slot.isBooked || slot.status === 'booked').length}</Text>
+                  <Text style={[styles.badgeNumber, (availabilityInfo.bookedSlots > 0 || timeSlots.some((slot) => slot.isBooked || slot.status === 'booked')) && styles.badgeActiveText]}>{timeSlots.length > 0 ? timeSlots.filter((slot) => slot.isBooked || slot.status === 'booked').length : availabilityInfo.bookedSlots}</Text>
                   <Text style={[styles.badgeLabel, (availabilityInfo.bookedSlots > 0 || timeSlots.some((slot) => slot.isBooked || slot.status === 'booked')) && styles.badgeActiveLabelText]}>booked</Text>
                 </View>
                 

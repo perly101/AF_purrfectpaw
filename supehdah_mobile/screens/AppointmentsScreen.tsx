@@ -15,7 +15,7 @@ import {
 import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import { API } from '../src/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation, CommonActions } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -162,11 +162,10 @@ export default function AppointmentsScreen() {
               await AsyncStorage.setItem('selectedClinic', JSON.stringify(minimal));
               setSelectedClinicId(clinic.id);
 
-              // Dispatch reset to parent navigator to ensure the RESET action is handled
-              const parent = navigation.getParent();
-              (parent ?? navigation).dispatch(
-                CommonActions.reset({ index: 0, routes: [{ name: 'ClinicTabs' }] })
-              );
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'ClinicTabs' }],
+              });
             } catch (error) {
               Alert.alert('Error', 'There was a problem selecting this clinic. Please try again.', [{ text: 'OK' }]);
             }

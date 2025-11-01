@@ -19,8 +19,14 @@ export interface SlotWithState extends Slot {
 }
 
 // Process raw slots to determine their current state
-const processSlotStates = (rawSlots: Slot[], selectedDate: Date, localBookings: any[] = []): SlotWithState[] => {
+const processSlotStates = (
+  rawSlots: Slot[], 
+  selectedDate: Date, 
+  localBookings: any[] = [], 
+  breakTimes: any[] = []
+): SlotWithState[] => {
   const now = new Date();
+  const dayOfWeek = selectedDate.getDay();
   
   return rawSlots.map((slot) => {
     let state: 'available' | 'booked' | 'past' | 'closed' = 'available';
@@ -42,6 +48,24 @@ const processSlotStates = (rawSlots: Slot[], selectedDate: Date, localBookings: 
     else if ((slot as any).available === false || (slot as any).is_available === false) {
       state = 'closed';
     }
+    // Check if this slot conflicts with break times
+    else if (breakTimes.some(breakTime => {
+      if (!breakTime.is_active || !breakTime.days.includes(dayOfWeek)) {
+        return false;
+      }
+      
+      const breakStart = breakTime.start_time;
+      const breakEnd = breakTime.end_time;
+      const slotStart = slot.start;
+      const slotEnd = slot.end;
+      
+      // Check if slot overlaps with break time
+      return (slotStart >= breakStart && slotStart < breakEnd) || 
+             (slotEnd > breakStart && slotEnd <= breakEnd) ||
+             (slotStart <= breakStart && slotEnd >= breakEnd);
+    })) {
+      state = 'closed';
+    }
     // Check if this slot is locally booked (immediate UI feedback)
     else if (localBookings.some(booking => booking.appointment_time === slot.start)) {
       state = 'booked';
@@ -60,13 +84,17 @@ interface TimeSlotPickerProps {
   selectedDate: Date;
   onSelectSlot: (slot: Slot) => void;
   selectedSlot: Slot | null;
+  breakTimes?: any[];
+  clinicSettings?: any;
 }
 
 const TimeSlotPicker: React.FC<TimeSlotPickerProps> = ({
   clinicId,
   selectedDate,
   onSelectSlot,
-  selectedSlot
+  selectedSlot,
+  breakTimes = [],
+  clinicSettings = {}
 }) => {
   const [slots, setSlots] = useState<SlotWithState[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -100,7 +128,7 @@ const TimeSlotPicker: React.FC<TimeSlotPickerProps> = ({
         try {
           console.log(`Attempting to fetch slots for clinic ${clinicId} on ${formattedDate}`);
           const response = await getAvailabilitySlots(clinicId, formattedDate);
-          const processedSlots = processSlotStates(response.slots || [], selectedDate, localBookings);
+          const processedSlots = processSlotStates(response.slots || [], selectedDate, localBookings, breakTimes);
           setSlots(processedSlots);
         } catch (initialError) {
           // If the regular method fails, try with multiple base URLs
@@ -113,7 +141,7 @@ const TimeSlotPicker: React.FC<TimeSlotPickerProps> = ({
             
             if (data && data.slots) {
               console.log(`Success with alternate method! Found ${data.slots.length} slots`);
-              const processedSlots = processSlotStates(data.slots, selectedDate, localBookings);
+              const processedSlots = processSlotStates(data.slots, selectedDate, localBookings, breakTimes);
               setSlots(processedSlots);
             } else {
               throw new Error('No slots found in response');
@@ -130,7 +158,7 @@ const TimeSlotPicker: React.FC<TimeSlotPickerProps> = ({
                 { start: "14:00:00", end: "14:30:00", display_time: "2:00 PM - 2:30 PM" },
                 { start: "14:30:00", end: "15:00:00", display_time: "2:30 PM - 3:00 PM" }
               ];
-              const processedSlots = processSlotStates(mockSlots, selectedDate, localBookings);
+              const processedSlots = processSlotStates(mockSlots, selectedDate, localBookings, breakTimes);
               setSlots(processedSlots);
               setError('Using mock data (development mode)');
             }
@@ -193,7 +221,7 @@ const TimeSlotPicker: React.FC<TimeSlotPickerProps> = ({
             // First try the main method
             getAvailabilitySlots(clinicId, formattedDate)
               .then(response => {
-                const processedSlots = processSlotStates(response.slots || [], selectedDate, localBookings);
+                const processedSlots = processSlotStates(response.slots || [], selectedDate, localBookings, breakTimes);
                 setSlots(processedSlots);
               })
               .catch(err => {
@@ -205,7 +233,7 @@ const TimeSlotPicker: React.FC<TimeSlotPickerProps> = ({
                   .then(response => {
                     const data = response?.data?.data || response?.data;
                     if (data && data.slots) {
-                      const processedSlots = processSlotStates(data.slots, selectedDate, localBookings);
+                      const processedSlots = processSlotStates(data.slots, selectedDate, localBookings, breakTimes);
                       setSlots(processedSlots);
                     } else {
                       throw new Error('No slots found in response');

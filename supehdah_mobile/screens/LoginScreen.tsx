@@ -19,7 +19,7 @@ import {
 } from 'react-native';
 import { API } from '../src/api';
 import { OtpApi } from '../src/otpApi';
-import { useNavigation, CommonActions } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -141,26 +141,10 @@ export default function LoginScreen(): React.ReactElement {
         await AsyncStorage.removeItem('verification_flow');
         
         // Email is already verified, navigate to dashboard
-        // Dispatch reset to the top-most navigator (or global nav ref) so RESET is handled
-        try {
-          // @ts-ignore
-          const globalNav = (global as any).navigationRef;
-          if (globalNav && typeof globalNav.dispatch === 'function') {
-            globalNav.dispatch(CommonActions.reset({ index: 0, routes: [{ name: 'PersonalTabs' }] }));
-          } else {
-            let top: any = navigation as any;
-            let p = navigation.getParent ? navigation.getParent() : null;
-            while (p) {
-              top = p;
-              p = p.getParent ? p.getParent() : null;
-            }
-
-            (top ?? navigation).dispatch(CommonActions.reset({ index: 0, routes: [{ name: 'PersonalTabs' }] }));
-          }
-        } catch (e) {
-          console.error('Failed to reset navigation to PersonalTabs after login, fallback navigate', e);
-          (navigation as any).navigate('PersonalTabs');
-        }
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'PersonalTabs' }],
+        });
       }
     } catch (err: unknown) {
       // Clear any tokens since login failed

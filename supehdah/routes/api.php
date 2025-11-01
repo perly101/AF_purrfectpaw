@@ -22,6 +22,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', [AuthController::class, 'user']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::put('/profile', [AuthController::class, 'updateProfile']);
+    // User profile appointments (for mobile app) - returns appointments belonging to authenticated user
+    Route::get('/profile/appointments', [\App\Http\Controllers\API\ProfileController::class, 'appointments']);
+    Route::get('/profile/appointments/{id}', [\App\Http\Controllers\API\ProfileController::class, 'appointmentDetails']);
     
     // OTP Verification API Routes with rate limiting
     // Maximum 5 attempts per minute for OTP verification

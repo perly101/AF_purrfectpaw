@@ -1,15 +1,11 @@
-module.exports = function(api) {
-  api.cache(true);
-  
-  const isWeb = process.env.PLATFORM === 'web';
-  
-  return {
-    presets: ['babel-preset-expo'],
-    plugins: [
-      // Web-specific plugins
-      ...(isWeb ? [
-        './react-navigation-web-patch.js' // Apply our patch only in web environment
-      ] : [])
-    ]
-  };
+module.exports = function (api) {
+	api.cache(true);
+
+	return {
+		// Use the Expo preset (works with React Native + TypeScript projects)
+		// and add Flow preset so Flow-typed files inside node_modules (e.g. expo)
+		// can be parsed during bundling.
+		presets: ["babel-preset-expo", "@babel/preset-flow"],
+		plugins: [],
+	};
 };

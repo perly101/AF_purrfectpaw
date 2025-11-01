@@ -23,7 +23,12 @@ export const ROUTES = {
     DETAILS: (id: number | string) => `/clinics/${id}`,
     AVAILABILITY: {
       SUMMARY: (id: number | string) => `/clinics/${id}/availability/summary`,
-      SLOTS: (id: number | string, date: string) => `/clinics/${id}/availability/slots/${date}`
+      SLOTS: (id: number | string, date: string) => `/clinics/${id}/availability/slots/${date}`,
+      SETTINGS: (id: number | string) => `/clinics/${id}/availability/settings`,
+      DAILY_SCHEDULE: (id: number | string, dayOfWeek: number) => `/clinics/${id}/availability/daily-schedule/${dayOfWeek}`,
+      BREAKS: (id: number | string) => `/clinics/${id}/availability/breaks`,
+      SPECIAL_DATES: (id: number | string) => `/clinics/${id}/availability/special-dates`,
+      CALENDAR_DATES: (id: number | string) => `/clinics/${id}/availability/dates`
     },
     APPOINTMENTS: {
       CREATE: (id: number | string) => `/clinics/${id}/appointments`,
@@ -33,7 +38,8 @@ export const ROUTES = {
       CANCEL: (clinicId: number | string, appointmentId: number | string) => 
         `/clinics/${clinicId}/appointments/${appointmentId}/cancel`
     },
-    CUSTOM_FIELDS: (id: number | string) => `/clinics/${id}/custom-fields`
+    CUSTOM_FIELDS: (id: number | string) => `/clinics/${id}/custom-fields`,
+    FIELDS: (id: number | string) => `/clinics/${id}/fields`
   },
   
   // User profile routes

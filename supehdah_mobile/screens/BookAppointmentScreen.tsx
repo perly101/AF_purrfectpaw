@@ -15,7 +15,16 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { format } from 'date-fns';
 import TimeSlotPicker from '../components/TimeSlotPicker';
-import { bookAppointment, getAvailabilitySlots, API, Slot, CustomField, AppointmentBookingData } from '../src/api';
+import { 
+  bookAppointment, 
+  getAvailabilitySlots, 
+  getComprehensiveAvailability,
+  getClinicFields,
+  API, 
+  Slot, 
+  CustomField, 
+  AppointmentBookingData 
+} from '../src/api';
 import { ROUTES } from '../src/routes';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
@@ -111,6 +120,13 @@ const BookAppointmentScreen = ({ route }: AppointmentFormProps) => {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   
+  // Comprehensive availability data
+  const [availabilityData, setAvailabilityData] = useState<any>(null);
+  const [clinicSettings, setClinicSettings] = useState<any>(null);
+  const [weeklySchedule, setWeeklySchedule] = useState<any>(null);
+  const [breakTimes, setBreakTimes] = useState<any[]>([]);
+  const [specialDates, setSpecialDates] = useState<any[]>([]);
+  
   // Load user info and clinic fields on component mount
   useEffect(() => {
     const loadUserInfo = async () => {
@@ -129,12 +145,22 @@ const BookAppointmentScreen = ({ route }: AppointmentFormProps) => {
     const fetchFields = async () => {
       setLoading(true);
       try {
-        // Get regular form fields
-        const fieldsResponse = await API.get(ROUTES.CLINICS.CUSTOM_FIELDS(clinicId));
-        console.log('Custom fields API response:', JSON.stringify(fieldsResponse.data));
+        // Get comprehensive availability data including settings, schedules, breaks, special dates, and fields
+        console.log(`Fetching comprehensive availability data for clinic ${clinicId}`);
+        const comprehensiveData = await getComprehensiveAvailability(clinicId);
         
-        // Ensure we have valid data before proceeding
-        const fieldsData = fieldsResponse.data?.data || [];
+        console.log('Comprehensive availability data:', JSON.stringify(comprehensiveData, null, 2));
+        
+        // Store comprehensive data
+        setAvailabilityData(comprehensiveData);
+        setClinicSettings(comprehensiveData.settings || {});
+        setWeeklySchedule(comprehensiveData.weeklySchedule || {});
+        setBreakTimes(comprehensiveData.breaks || []);
+        setSpecialDates(comprehensiveData.specialDates || []);
+        
+        // Use fields from comprehensive data
+        const fieldsData = comprehensiveData.fields || [];
+        console.log('Clinic fields from comprehensive data:', JSON.stringify(fieldsData));
         setFields(fieldsData);
         
         // Initialize field values
@@ -197,10 +223,57 @@ const BookAppointmentScreen = ({ route }: AppointmentFormProps) => {
     fetchFields();
   }, [clinicId]);
   
+  // Check if a date is available based on clinic settings
+  const isDateAvailable = (date: Date): { available: boolean; reason?: string } => {
+    if (!weeklySchedule || !clinicSettings) {
+      return { available: true }; // Default to available if no data
+    }
+    
+    const dayOfWeek = date.getDay();
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const dayName = dayNames[dayOfWeek];
+    const daySchedule = weeklySchedule[dayName];
+    
+    // Check if the day is closed
+    if (!daySchedule || !daySchedule.isAvailable) {
+      return { available: false, reason: `${dayName.charAt(0).toUpperCase() + dayName.slice(1)} is not available` };
+    }
+    
+    // Check special dates (holidays/closures)
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const specialDate = specialDates.find(sd => sd.date === dateStr);
+    if (specialDate && !specialDate.is_available) {
+      return { available: false, reason: specialDate.name || 'Special closure date' };
+    }
+    
+    // Check advance booking limits
+    const today = new Date();
+    const diffTime = date.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (clinicSettings.advance_booking_days && diffDays > clinicSettings.advance_booking_days) {
+      return { available: false, reason: `Cannot book more than ${clinicSettings.advance_booking_days} days in advance` };
+    }
+    
+    // Check same day booking restrictions
+    if (!clinicSettings.same_day_booking && diffDays === 0) {
+      return { available: false, reason: 'Same day booking is not allowed' };
+    }
+    
+    return { available: true };
+  };
+
   const onDateChange = (event: any, selectedDate?: Date) => {
     setShowDatePicker(Platform.OS === 'ios');
     if (selectedDate) {
-      // Check if same-day booking restriction is enabled
+      // Check clinic-specific availability first
+      const dateAvailability = isDateAvailable(selectedDate);
+      if (!dateAvailability.available) {
+        Alert.alert('Date Not Available', dateAvailability.reason || 'This date is not available for appointments.', [{ text: 'OK' }]);
+        return;
+      }
+      
+      // Check if same-day booking restriction is enabled (legacy config)
       if (BOOKING_CONFIG.samedayOnly) {
         const today = new Date();
         const selectedDateOnly = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
@@ -712,6 +785,85 @@ const BookAppointmentScreen = ({ route }: AppointmentFormProps) => {
           </View>
         )}
         
+        {/* Clinic Availability Information */}
+        {weeklySchedule && (
+          <View style={styles.formSection}>
+            <Text style={styles.sectionTitle}>Clinic Hours & Information</Text>
+            
+            {/* Weekly Schedule */}
+            <View style={styles.infoContainer}>
+              <Text style={styles.infoLabel}>Weekly Schedule:</Text>
+              {Object.entries(weeklySchedule).map(([day, schedule]: [string, any]) => (
+                <View key={day} style={styles.scheduleRow}>
+                  <Text style={styles.dayName}>
+                    {day.charAt(0).toUpperCase() + day.slice(1)}:
+                  </Text>
+                  <Text style={styles.scheduleTime}>
+                    {schedule.isAvailable && schedule.start && schedule.end 
+                      ? `${schedule.start} - ${schedule.end}`
+                      : 'Closed'
+                    }
+                  </Text>
+                </View>
+              ))}
+            </View>
+            
+            {/* Break Times */}
+            {breakTimes.length > 0 && (
+              <View style={styles.infoContainer}>
+                <Text style={styles.infoLabel}>Break Times:</Text>
+                {breakTimes.map((breakTime, index) => (
+                  <View key={index} style={styles.scheduleRow}>
+                    <Text style={styles.breakName}>
+                      {breakTime.name}:
+                    </Text>
+                    <Text style={styles.scheduleTime}>
+                      {breakTime.start_time} - {breakTime.end_time}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+            
+            {/* Special Dates/Holidays */}
+            {specialDates.length > 0 && (
+              <View style={styles.infoContainer}>
+                <Text style={styles.infoLabel}>Special Dates:</Text>
+                {specialDates.slice(0, 3).map((specialDate, index) => (
+                  <View key={index} style={styles.scheduleRow}>
+                    <Text style={styles.dayName}>
+                      {format(new Date(specialDate.date), 'MMM dd, yyyy')}:
+                    </Text>
+                    <Text style={[styles.scheduleTime, !specialDate.is_available && styles.closedText]}>
+                      {specialDate.is_available ? 'Open' : (specialDate.name || 'Closed')}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+            
+            {/* Booking Settings */}
+            {clinicSettings && (
+              <View style={styles.infoContainer}>
+                <Text style={styles.infoLabel}>Booking Information:</Text>
+                <Text style={styles.infoText}>
+                  • Appointment duration: {clinicSettings.slot_duration || 30} minutes
+                </Text>
+                {clinicSettings.advance_booking_days && (
+                  <Text style={styles.infoText}>
+                    • Book up to {clinicSettings.advance_booking_days} days in advance
+                  </Text>
+                )}
+                {!clinicSettings.same_day_booking && (
+                  <Text style={styles.infoText}>
+                    • Same day booking not available
+                  </Text>
+                )}
+              </View>
+            )}
+          </View>
+        )}
+
         <View style={styles.formSection}>
           <Text style={styles.sectionTitle}>Appointment Details</Text>
           
@@ -743,6 +895,8 @@ const BookAppointmentScreen = ({ route }: AppointmentFormProps) => {
             selectedDate={selectedDate}
             onSelectSlot={setSelectedSlot}
             selectedSlot={selectedSlot}
+            breakTimes={breakTimes}
+            clinicSettings={clinicSettings}
           />
         </View>
         
@@ -937,6 +1091,52 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: TEXT_SECONDARY,
+  },
+  // Clinic Information Styles
+  infoContainer: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  infoLabel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: TEXT_PRIMARY,
+    marginBottom: 8,
+  },
+  scheduleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  dayName: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: TEXT_PRIMARY,
+    flex: 1,
+  },
+  breakName: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: TEXT_SECONDARY,
+    flex: 1,
+  },
+  scheduleTime: {
+    fontSize: 14,
+    color: TEXT_SECONDARY,
+    textAlign: 'right',
+  },
+  closedText: {
+    color: '#EF4444',
+    fontWeight: '500',
+  },
+  infoText: {
+    fontSize: 14,
+    color: TEXT_SECONDARY,
+    marginBottom: 4,
+    lineHeight: 20,
   },
 });
 

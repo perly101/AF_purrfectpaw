@@ -14,21 +14,44 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Calendar } from 'react-native-calendars';
 import { API } from '../src/api';
+import { ROUTES } from '../src/routes';
 import { useNavigation } from '@react-navigation/native';
 
-const PINK = '#FF6B8A';
+const PINK = '#FF9EB1';
 const PURPLE = '#6C5CE7';
 const WHITE = '#FFFFFF';
-const DARK = '#2E2E36';
-const LIGHT = '#F6F7FB';
-const MUTED = '#7B7B8C';
+const DARK = '#1A1D29';
+const LIGHT = '#F8FAFC';
+const MUTED = '#64748B';
+const SUCCESS = '#10B981';
+const WARNING = '#F59E0B';
+const GRADIENT_START = '#667EEA';
+const GRADIENT_END = '#764BA2';
 
 type Appointment = {
   id: string;
-  pet: string;
-  what: string;
-  when: string; // format: 'YYYY-MM-DD HH:mm' (we extract date part)
-  clinic: string;
+  pet_id: string;
+  pet_name: string;
+  service: string;
+  appointment_date: string;
+  appointment_time: string;
+  status: string;
+  clinic_name: string;
+  clinic_id: string;
+};
+
+type Pet = {
+  id: string;
+  name: string;
+  type: string;
+  breed: string;
+  age: number;
+};
+
+type UserStats = {
+  total_appointments: number;
+  upcoming_appointments: number;
+  total_pets: number;
 };
 
 export default function HomeScreen() {
@@ -38,6 +61,8 @@ export default function HomeScreen() {
   const [userName, setUserName] = React.useState<string | null>(null);
   const [loadingUser, setLoadingUser] = React.useState<boolean>(false);
   const [appointments, setAppointments] = React.useState<Appointment[]>([]);
+  const [pets, setPets] = React.useState<Pet[]>([]);
+  const [userStats, setUserStats] = React.useState<UserStats | null>(null);
   const [refreshing, setRefreshing] = React.useState<boolean>(false);
 
   const getTimeBasedGreeting = React.useCallback(() => {
@@ -72,32 +97,94 @@ export default function HomeScreen() {
     }
   }, []);
 
-  // *** TEMP: use mock appointment data instead of fetching from API ***
   const fetchAppointments = React.useCallback(async () => {
     try {
-      // Temporary hard-coded appointments
-      const mock: Appointment[] = [
-        { id: 'a1', pet: 'Bella', what: 'Vaccination', when: '2025-08-28 10:00', clinic: 'Happy Paws Clinic' },
-        { id: 'a2', pet: 'Max', what: 'Check-up', when: '2025-09-02 14:00', clinic: 'City Vet' },
-        { id: 'a3', pet: 'Luna', what: 'Grooming', when: '2025-09-10 09:00', clinic: 'Pet Styles' },
-      ];
+      const token = await AsyncStorage.getItem('token') || 
+                   await AsyncStorage.getItem('userToken') || 
+                   await AsyncStorage.getItem('accessToken');
+      
+      if (!token) {
+        console.log('No auth token available, skipping appointments fetch');
+        return;
+      }
 
-      // keep same logic as before (max 3)
-      setAppointments(mock.slice(0, 3));
-    } catch (e) {
-      console.error('Failed to set mock appointments:', e);
+      // Use the profile appointments route which returns appointments belonging to the
+      // currently authenticated user. The API module already attaches token via interceptor.
+      const response = await API.get(ROUTES.PROFILE.APPOINTMENTS.LIST);
+
+      // Support multiple response shapes (data.appointments | data.data | data)
+      const payload = response.data?.appointments ?? response.data?.data ?? response.data;
+
+      if (payload) {
+        const list = Array.isArray(payload) ? payload : (payload.appointments ?? []);
+        // Get upcoming appointments only, limit to 3 for home screen
+        const upcoming = list
+          .filter((apt: any) => new Date(apt.appointment_date) >= new Date())
+          .slice(0, 3);
+        setAppointments(upcoming);
+      } else {
+        setAppointments([]);
+      }
+    } catch (e: any) {
+      console.error('Failed to fetch appointments:', e);
       setAppointments([]);
+    }
+  }, []);
+
+  const fetchPets = React.useCallback(async () => {
+    try {
+      const token = await AsyncStorage.getItem('token') || 
+                   await AsyncStorage.getItem('userToken') || 
+                   await AsyncStorage.getItem('accessToken');
+      
+      if (!token) return;
+
+      const response = await API.get('/pets', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (response.data?.pets) {
+        setPets(response.data.pets);
+      }
+    } catch (e: any) {
+      console.error('Failed to fetch pets:', e);
+      setPets([]);
+    }
+  }, []);
+
+  const fetchUserStats = React.useCallback(async () => {
+    try {
+      const token = await AsyncStorage.getItem('token') || 
+                   await AsyncStorage.getItem('userToken') || 
+                   await AsyncStorage.getItem('accessToken');
+      
+      if (!token) return;
+
+      const response = await API.get('/user/stats', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (response.data) {
+        setUserStats(response.data);
+      }
+    } catch (e: any) {
+      console.error('Failed to fetch user stats:', e);
     }
   }, []);
 
   const fetchAllData = React.useCallback(async () => {
     if (!refreshing) setLoading(true);
 
-    await Promise.all([fetchUserData(), fetchAppointments()]);
+    await Promise.all([
+      fetchUserData(), 
+      fetchAppointments(), 
+      fetchPets(), 
+      fetchUserStats()
+    ]);
 
     setLoading(false);
     setRefreshing(false);
-  }, [refreshing, fetchUserData, fetchAppointments]);
+  }, [refreshing, fetchUserData, fetchAppointments, fetchPets, fetchUserStats]);
 
   React.useEffect(() => {
     fetchAllData();
@@ -122,29 +209,54 @@ export default function HomeScreen() {
           <Text style={styles.username}>{userName ?? (loadingUser ? 'Loading...' : 'User')}</Text>
         </View>
 
+        {/* Stats Cards */}
+        {userStats && (
+          <View style={styles.statsContainer}>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>{userStats.total_pets}</Text>
+              <Text style={styles.statLabel}>Pets</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>{userStats.upcoming_appointments}</Text>
+              <Text style={styles.statLabel}>Upcoming</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>{userStats.total_appointments}</Text>
+              <Text style={styles.statLabel}>Total Visits</Text>
+            </View>
+          </View>
+        )}
+
         {/* Quick Actions with routes */}
         <View style={styles.quickActions}>
           <Action
-            icon="calendar"
+            icon="calendar-plus"
             label="Book"
-            color="#FFEAEA"
+            color="#FFF1F3"
             iconColor={PINK}
             onPress={() => navigation.navigate('Appointments')}
           />
           <Action
-            icon="map-marker-radius"
+            icon="hospital-building"
             label="Clinics"
-            color="#E9FFF1"
-            iconColor="#1DB954"
+            color="#EFF6FF"
+            iconColor="#3B82F6"
             onPress={() => navigation.navigate('Appointments')}
           />
           <Action
-            icon="file-document"
+            icon="file-document-multiple"
             label="Records"
-            color="#FFF7EA"
-            iconColor="#FF9F1C"
+            color="#F0FDF4"
+            iconColor={SUCCESS}
             onPress={() => navigation.navigate('Records')}
           />
+          {/* <Action
+            icon="paw"
+            label="My Pets"
+            color="#FEF3C7"
+            iconColor={WARNING}
+            onPress={() => navigation.navigate('PetScreen')}
+          /> */}
         </View>
 
         {/* Welcome Card */}
@@ -185,12 +297,19 @@ export default function HomeScreen() {
                     onPress={() => navigation.navigate('AppointmentDetails', { id: item.id })}
                   >
                     <View style={styles.appInfo}>
-                      <Text style={styles.appWhat}>{item.what}</Text>
+                      <Text style={styles.appWhat}>{item.service}</Text>
                       <Text style={styles.appMeta}>
-                        {item.pet} • {item.when}
+                        {item.pet_name} • {item.appointment_date} {item.appointment_time}
                       </Text>
                     </View>
-                    <Text style={styles.appClinic}>{item.clinic}</Text>
+                    <View style={styles.appStatus}>
+                      <Text style={styles.appClinic}>{item.clinic_name}</Text>
+                      <View style={[styles.statusBadge, { backgroundColor: item.status === 'confirmed' ? '#E8F5E8' : '#FFF3E0' }]}>
+                        <Text style={[styles.statusText, { color: item.status === 'confirmed' ? '#2E7D2E' : '#E65100' }]}>
+                          {item.status}
+                        </Text>
+                      </View>
+                    </View>
                   </TouchableOpacity>
                 )}
               />
@@ -227,9 +346,8 @@ export default function HomeScreen() {
                 textDayHeaderFontSize: 12,
               }}
               markedDates={appointments.reduce((acc, app) => {
-                if (app.when) {
-                  const date = app.when.split(' ')[0]; // Extract date part
-                  acc[date] = { selected: true, selectedColor: PURPLE };
+                if (app.appointment_date) {
+                  acc[app.appointment_date] = { selected: true, selectedColor: PURPLE };
                 }
                 return acc;
               }, {} as any)}
@@ -263,54 +381,304 @@ function Action({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: LIGHT },
-  content: { padding: 18, paddingBottom: 40 },
-  // Header centered and vertically stacked
-  header: { alignItems: 'center', justifyContent: 'center', marginBottom: 20, marginTop: 25},
-  greeting: { color: MUTED, fontSize: 14 },
-  username: { color: DARK, fontSize: 22, fontWeight: '700' },
-  avatar: { backgroundColor: PURPLE, width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  searchRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
-  searchBox: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, shadowColor: '#000', shadowOpacity: 0.03, shadowOffset: { width: 0, height: 4 }, elevation: 2 },
-  searchInput: { flex: 1, fontSize: 14, color: DARK },
-  filterBtn: { marginLeft: 10, backgroundColor: PURPLE, width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  quickActions: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
-  actionItem: { flex: 1, padding: 12, borderRadius: 12, alignItems: 'center', marginHorizontal: 4 },
-  actionLabel: { marginTop: 6, fontSize: 12, color: DARK },
+  container: { 
+    flex: 1, 
+    backgroundColor: LIGHT 
+  },
+  content: { 
+    padding: 20, 
+    paddingBottom: 100 
+  },
+  
+  // Header - Modern centered design
+  header: { 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    marginBottom: 24, 
+    marginTop: 20,
+    paddingVertical: 16
+  },
+  greeting: { 
+    color: MUTED, 
+    fontSize: 16, 
+    fontWeight: '500',
+    marginBottom: 4
+  },
+  username: { 
+    color: DARK, 
+    fontSize: 28, 
+    fontWeight: '800',
+    letterSpacing: 0.5
+  },
 
-  // Section styles
-  sectionCard: { backgroundColor: WHITE, borderRadius: 12, padding: 16, marginBottom: 16, shadowColor: '#000', shadowOpacity: 0.03, shadowOffset: { width: 0, height: 4 }, elevation: 2 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: DARK },
-  seeAllText: { fontSize: 14, color: PURPLE, fontWeight: '600' },
+  // Stats Cards
+  statsContainer: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    marginBottom: 20,
+    gap: 12
+  },
+  statCard: { 
+    flex: 1, 
+    backgroundColor: WHITE, 
+    borderRadius: 16, 
+    padding: 20, 
+    alignItems: 'center',
+    shadowColor: DARK,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 6
+  },
+  statNumber: { 
+    fontSize: 24, 
+    fontWeight: '800', 
+    color: PURPLE,
+    marginBottom: 4
+  },
+  statLabel: { 
+    fontSize: 12, 
+    fontWeight: '600', 
+    color: MUTED,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5
+  },
 
-  // Removed pet card styles
+  // Quick Actions - Modern grid
+  quickActions: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    marginBottom: 24,
+    gap: 8
+  },
+  actionItem: { 
+    flex: 1, 
+    padding: 16, 
+    borderRadius: 16, 
+    alignItems: 'center',
+    marginHorizontal: 2,
+    shadowColor: DARK,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 3
+  },
+  actionLabel: { 
+    marginTop: 8, 
+    fontSize: 12, 
+    fontWeight: '600',
+    color: DARK 
+  },
 
-  welcomeCard: { backgroundColor: WHITE, borderRadius: 14, padding: 14, flexDirection: 'row', alignItems: 'center', marginBottom: 16, shadowColor: '#B39DDB', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 3 },
-  welcomeLeft: { flex: 1 },
-  welcomeTitle: { fontSize: 16, fontWeight: '700', color: DARK, marginBottom: 6 },
-  welcomeText: { color: MUTED, fontSize: 13, marginBottom: 10 },
-  welcomeGraphic: { width: 68, height: 68, borderRadius: 12, backgroundColor: '#FFF0F6', alignItems: 'center', justifyContent: 'center' },
-  primaryBtn: { backgroundColor: PURPLE, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, alignSelf: 'flex-start' },
-  primaryBtnText: { color: WHITE, fontWeight: '700' },
+  // Welcome Card - Modern gradient-like design
+  welcomeCard: { 
+    backgroundColor: WHITE, 
+    borderRadius: 20, 
+    padding: 20, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    marginBottom: 24,
+    shadowColor: PURPLE,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: '#F1F5F9'
+  },
+  welcomeLeft: { 
+    flex: 1 
+  },
+  welcomeTitle: { 
+    fontSize: 18, 
+    fontWeight: '800', 
+    color: DARK, 
+    marginBottom: 8,
+    letterSpacing: 0.3
+  },
+  welcomeText: { 
+    color: MUTED, 
+    fontSize: 14, 
+    lineHeight: 20,
+    marginBottom: 16,
+    fontWeight: '500'
+  },
+  welcomeGraphic: { 
+    width: 80, 
+    height: 80, 
+    borderRadius: 20, 
+    backgroundColor: '#FFF1F3', 
+    alignItems: 'center', 
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFE4E6'
+  },
+  primaryBtn: { 
+    backgroundColor: PURPLE, 
+    paddingVertical: 12, 
+    paddingHorizontal: 20, 
+    borderRadius: 12, 
+    alignSelf: 'flex-start',
+    shadowColor: PURPLE,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6
+  },
+  primaryBtnText: { 
+    color: WHITE, 
+    fontWeight: '700',
+    fontSize: 14,
+    letterSpacing: 0.3
+  },
 
-  rowCards: { flexDirection: 'column', gap: 12 },
-  cardSmall: { backgroundColor: WHITE, borderRadius: 12, padding: 12, marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.03, shadowOffset: { width: 0, height: 4 }, elevation: 2 },
-  cardLarge: { backgroundColor: WHITE, borderRadius: 12, padding: 12, shadowColor: '#000', shadowOpacity: 0.03, shadowOffset: { width: 0, height: 4 }, elevation: 2 },
-  cardTitle: { fontSize: 15, fontWeight: '700', color: PURPLE, marginBottom: 8 },
+  // Cards Layout
+  rowCards: { 
+    flexDirection: 'column', 
+    gap: 16 
+  },
+  cardSmall: { 
+    backgroundColor: WHITE, 
+    borderRadius: 20, 
+    padding: 20, 
+    marginBottom: 16,
+    shadowColor: DARK,
+    shadowOpacity: 0.06,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 12,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#F1F5F9'
+  },
+  cardLarge: { 
+    backgroundColor: WHITE, 
+    borderRadius: 20, 
+    padding: 20,
+    shadowColor: DARK,
+    shadowOpacity: 0.06,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 12,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#F1F5F9'
+  },
+  cardTitle: { 
+    fontSize: 18, 
+    fontWeight: '800', 
+    color: DARK, 
+    marginBottom: 16,
+    letterSpacing: 0.3
+  },
 
-  // Appointment styles
-  appItem: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F1F2F6', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  appInfo: { flexDirection: 'column', flex: 1 },
-  appWhat: { fontSize: 14, fontWeight: '600', color: DARK },
-  appMeta: { fontSize: 12, color: MUTED, marginTop: 2 },
-  appClinic: { fontSize: 12, color: MUTED, textAlign: 'right', maxWidth: 100 },
+  // Section Header
+  sectionHeader: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    marginBottom: 16 
+  },
+  seeAllText: { 
+    fontSize: 14, 
+    color: PURPLE, 
+    fontWeight: '700',
+    letterSpacing: 0.3
+  },
 
-  // Empty state styles
-  emptyState: { alignItems: 'center', paddingVertical: 20 },
-  emptyText: { fontSize: 14, color: MUTED, marginTop: 8, marginBottom: 12 },
-  emptyAction: { backgroundColor: PURPLE, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
-  emptyActionText: { color: WHITE, fontSize: 12, fontWeight: '600' },
+  // Appointment Items - Modern cards
+  appItem: { 
+    backgroundColor: '#FAFBFC',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: DARK,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2
+  },
+  appInfo: { 
+    flex: 1,
+    marginBottom: 8
+  },
+  appWhat: { 
+    fontSize: 16, 
+    fontWeight: '700', 
+    color: DARK,
+    marginBottom: 4,
+    letterSpacing: 0.2
+  },
+  appMeta: { 
+    fontSize: 13, 
+    color: MUTED, 
+    fontWeight: '500',
+    letterSpacing: 0.2
+  },
+  appStatus: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  appClinic: { 
+    fontSize: 13, 
+    color: MUTED, 
+    fontWeight: '600',
+    flex: 1
+  },
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    marginLeft: 8
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5
+  },
 
-  calendar: { borderRadius: 8, overflow: 'hidden', marginTop: 6 },
+  // Empty State - Modern design
+  emptyState: { 
+    alignItems: 'center', 
+    paddingVertical: 40,
+    paddingHorizontal: 20
+  },
+  emptyText: { 
+    fontSize: 16, 
+    color: MUTED, 
+    marginTop: 12, 
+    marginBottom: 20,
+    textAlign: 'center',
+    fontWeight: '500',
+    lineHeight: 22
+  },
+  emptyAction: { 
+    backgroundColor: PURPLE, 
+    paddingHorizontal: 24, 
+    paddingVertical: 12, 
+    borderRadius: 12,
+    shadowColor: PURPLE,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6
+  },
+  emptyActionText: { 
+    color: WHITE, 
+    fontSize: 14, 
+    fontWeight: '700',
+    letterSpacing: 0.3
+  },
+
+  // Calendar - Enhanced styling
+  calendar: { 
+    borderRadius: 16, 
+    overflow: 'hidden', 
+    marginTop: 8,
+    backgroundColor: WHITE,
+    borderWidth: 1,
+    borderColor: '#F1F5F9'
+  },
 });

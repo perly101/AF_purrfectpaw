@@ -217,7 +217,7 @@ export default function SettingsScreen() {
             <Text style={styles.cardTitle}>Appointment History</Text>
           </View>
 
-          <TouchableOpacity style={styles.cardRow} onPress={() => navigation.navigate('ClinicTabs')} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.cardRow} onPress={() => navigation.navigate('Records')} activeOpacity={0.7}>
             <View style={styles.rowLeft}>
               <Ionicons name="calendar-outline" size={18} color={MUTED} />
               <Text style={styles.cardText}>View All Appointments</Text>
