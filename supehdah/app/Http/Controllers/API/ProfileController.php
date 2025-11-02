@@ -219,4 +219,56 @@ class ProfileController extends Controller
 
         return response()->json(['data' => $data]);
     }
+
+    /**
+     * Get user statistics for dashboard
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function stats(Request $request)
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        // Get user's appointments count
+        $totalAppointments = Appointment::where('user_id', $user->id)->count();
+        
+        // Get upcoming appointments (future appointments)
+        $upcomingAppointments = Appointment::where('user_id', $user->id)
+            ->where('appointment_date', '>=', now()->toDateString())
+            ->where('status', '!=', 'cancelled')
+            ->count();
+        
+        // Get completed appointments
+        $completedAppointments = Appointment::where('user_id', $user->id)
+            ->where('status', 'completed')
+            ->count();
+            
+        // Get cancelled appointments
+        $cancelledAppointments = Appointment::where('user_id', $user->id)
+            ->where('status', 'cancelled')
+            ->count();
+
+        // Get total pets (if pets table exists, otherwise set to 0)
+        $totalPets = 0;
+        try {
+            // Check if pets table exists and has user relation
+            if (\Schema::hasTable('pets')) {
+                $totalPets = \DB::table('pets')->where('user_id', $user->id)->count();
+            }
+        } catch (\Exception $e) {
+            // If pets table doesn't exist or has issues, default to 0
+            $totalPets = 0;
+        }
+
+        return response()->json([
+            'total_appointments' => $totalAppointments,
+            'upcoming_appointments' => $upcomingAppointments,
+            'completed_appointments' => $completedAppointments,
+            'cancelled_appointments' => $cancelledAppointments,
+            'total_pets' => $totalPets,
+            'user_since' => $user->created_at ? $user->created_at->format('Y-m-d') : null,
+        ]);
+    }
 }

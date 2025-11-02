@@ -58,5 +58,10 @@ export const ROUTES = {
       DETAILS: (id: number | string) => `/profile/appointments/${id}`,
       CANCEL: (id: number | string) => `/profile/appointments/${id}/cancel`
     }
+  },
+  
+  // User statistics
+  USER: {
+    STATS: '/user/stats'
   }
 };

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Platform,
@@ -7,37 +7,44 @@ import {
   Dimensions,
   TouchableOpacity,
   Animated,
+  Easing,
 } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import ClinicHomeScreen from '../screens/ClinicHomeScreen';
-import ClinicAppointmentsScreen from '../screens/ClinicAppointmentsScreen';
 import ClinicGalleryScreen from '../screens/ClinicGalleryScreen';
 import ClinicSettingsScreen from '../screens/ClinicSettingsScreen';
 import ClinicCalendarScreen from '../screens/ClinicCalendarScreen';
 import ClinicNotificationsScreen from '../screens/ClinicNotificationsScreen';
 import NotificationBadge from '../components/NotificationBadge';
+import { LinearGradient } from 'expo-linear-gradient';
+import { getResponsiveTabBarSizes, getResponsiveElevation } from '../src/utils/responsiveTabBar';
 
-// Define our main colors
-const PINK = '#FF9EB1';
+// Define colors for pill-shaped tab bar design
+const ACTIVE_BLUE = '#0AA3FF';
+const WHITE = '#FFFFFF';
+const INACTIVE_GRAY = '#9AA0A6';
+const TAB_BAR_BG = '#FFFFFF';
+const SHADOW_COLOR = '#000000';
 
 const Tab = createBottomTabNavigator();
 
 export default function ClinicTabs() {
   const insets = useSafeAreaInsets();
+  
+  // Get responsive sizes for tab bar
+  const responsiveSizes = getResponsiveTabBarSizes();
 
   return (
     <Tab.Navigator
-      // Use the same custom pill-shaped tab bar as PersonalTabs
+      // Use gradient tab bar with Home in center
       tabBar={(props) => <CustomTabBar {...props} insets={insets} />}
       screenOptions={{ headerShown: false }}
     >
       <Tab.Screen name="ClinicHome" component={ClinicHomeScreen} options={{ tabBarLabel: 'Home' }} />
-      <Tab.Screen name="ClinicAppointments" component={ClinicAppointmentsScreen} options={{ tabBarLabel: 'Appointments' }} />
       <Tab.Screen name="ClinicCalendar" component={ClinicCalendarScreen} options={{ tabBarLabel: 'Availability' }} />
       <Tab.Screen name="ClinicGallery" component={ClinicGalleryScreen} options={{ tabBarLabel: 'Gallery' }} />
-      {/* <Tab.Screen name="ClinicNotifications" component={ClinicNotificationsScreen} options={{ tabBarLabel: 'Notifications' }} /> */}
       <Tab.Screen name="ClinicSettings" component={ClinicSettingsScreen} options={{ tabBarLabel: 'Settings' }} />
     </Tab.Navigator>
   );
@@ -76,193 +83,252 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   activeTab: {
-    backgroundColor: `${PINK}20`,
+    backgroundColor: 'rgba(10, 163, 255, 0.2)',
     borderRadius: 15,
   },
 });
 
+// Haptic feedback helper
+const triggerHapticFeedback = () => {
+  try {
+    const Haptics = require('expo-haptics');
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  } catch {
+    try {
+      const { Vibration } = require('react-native');
+      Vibration.vibrate(50);
+    } catch {
+      console.log('Haptic feedback not available');
+    }
+  }
+};
+
+// --- Pill-shaped Tab Bar with Elevated Active Circle ---
 function CustomTabBar({ state, descriptors, navigation, insets }: any) {
-  const SCREEN_WIDTH = Dimensions.get('window').width;
-  const PILL_WIDTH = SCREEN_WIDTH;
-  const PILL_LEFT = 0;
-  const centerButtonSize = 64;
-  const slotWidth = PILL_WIDTH / state.routes.length;
-  const PILL_HEIGHT = 64;
+  // Get responsive sizes for this component
+  const responsiveSizes = getResponsiveTabBarSizes();
+  
+  // Animation values for active tab circle
+  const activeTabScale = useRef(new Animated.Value(1)).current;
+  
+  // Handle tab press with micro-interaction
+  const handleTabPress = (routeName: string, index: number) => {
+    triggerHapticFeedback();
+    
+    // 120ms spring animation for active tab circle
+    Animated.sequence([
+      Animated.timing(activeTabScale, {
+        toValue: 1.06,
+        duration: 60,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.cubic),
+      }),
+      Animated.spring(activeTabScale, {
+        toValue: 1,
+        useNativeDriver: true,
+        damping: 12,
+        stiffness: 300,
+        restSpeedThreshold: 0.01,
+      }),
+    ]).start();
 
-  // animated value moves the circle relative to PILL_LEFT
-  const initialOffset = slotWidth * state.index + slotWidth / 2 - centerButtonSize / 2;
-  const translateX = React.useRef(new Animated.Value(initialOffset)).current;
-
-  const activeRouteName = state.routes[state.index].name;
-
-  React.useEffect(() => {
-    const toValue = slotWidth * state.index + slotWidth / 2 - centerButtonSize / 2;
-    Animated.spring(translateX, {
-      toValue,
-      useNativeDriver: true,
-      damping: 12,
-      stiffness: 100,
-      mass: 0.8,
-    }).start();
-  }, [state.index, slotWidth, translateX]);
+    navigation.navigate(routeName);
+  };
 
   const extraBottomPadding = insets?.bottom ?? 0;
 
   return (
-    <View style={[customStyles.container, { bottom: 0 }]} pointerEvents="box-none">
-      <View style={[customStyles.pillBackground, { paddingBottom: extraBottomPadding }]} />
+    <View style={[
+      clinicPillStyles.container, 
+      { 
+        paddingBottom: extraBottomPadding, // Use full bottom padding
+        paddingHorizontal: 0, // Remove horizontal padding so it extends to edges
+        paddingTop: 0
+      }
+    ]}>
+      {/* Tab bar card that extends to bottom and sides */}
+      <View style={[
+        clinicPillStyles.pillCard,
+        {
+          borderTopLeftRadius: responsiveSizes.pillCardBorderRadius,
+          borderTopRightRadius: responsiveSizes.pillCardBorderRadius,
+          borderBottomLeftRadius: 0,
+          borderBottomRightRadius: 0,
+          shadowRadius: responsiveSizes.shadowRadius,
+          shadowOffset: responsiveSizes.shadowOffset,
+          elevation: getResponsiveElevation(8),
+          flex: 1,
+          paddingBottom: extraBottomPadding + 8 // Add extra bottom padding
+        }
+      ]}>
+        <View style={[clinicPillStyles.tabRow, { height: 60 }]}>
+          {state.routes.map((route: any, index: number) => {
+            const focused = state.index === index;
+            const { options } = descriptors[route.key];
+            const label = options.tabBarLabel || route.name;
 
-      <Animated.View
-        style={[
-          customStyles.centerButtonWrapper,
-          { left: PILL_LEFT, transform: [{ translateX }], bottom: PILL_HEIGHT / 2 - Math.max(0, extraBottomPadding / 2) },
-        ]}
-        pointerEvents="box-none"
-      >
-        <TouchableOpacity
-          activeOpacity={0.95}
-          style={[customStyles.centerButton, state.index === 1 ? customStyles.centerButtonActive : {}]}
-          onPress={() => {
-            const index = 1; // ClinicAppointments is the center
-            navigation.navigate(state.routes[index].name);
-          }}
-        >
-          {renderIconFor(activeRouteName, true, /* inCircle */ true)}
-        </TouchableOpacity>
-      </Animated.View>
-
-      <View style={customStyles.tabRow}>
-        {state.routes.map((route: any, index: number) => {
-          const focused = state.index === index;
-          const { options } = descriptors[route.key];
-
-          return (
-            <TouchableOpacity
-              key={route.key}
-              accessibilityRole="button"
-              accessibilityState={focused ? { selected: true } : {}}
-              onPress={() => navigation.navigate(route.name)}
-              style={[customStyles.tabButton, focused && { opacity: 0 }]}
-              activeOpacity={0.85}
-            >
-              <View style={customStyles.tabInner}>
-                {renderIconFor(route.name, focused, /* inCircle */ false)}
-                <Text style={[customStyles.tabLabel, focused && { color: PINK }]} numberOfLines={1}>
-                  {options.tabBarLabel ?? route.name}
+            return (
+              <TouchableOpacity
+                key={route.key}
+                style={[
+                  clinicPillStyles.tabItem,
+                  {
+                    minHeight: responsiveSizes.minTouchTarget,
+                    minWidth: responsiveSizes.minTouchTarget,
+                    paddingBottom: responsiveSizes.tabItemPaddingBottom
+                  }
+                ]}
+                onPress={() => handleTabPress(route.name, index)}
+                activeOpacity={0.7}
+                accessibilityLabel={label}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: focused }}
+              >
+                {/* Active tab: elevated blue circle */}
+                {focused && (
+                  <Animated.View 
+                    style={[
+                      clinicPillStyles.activeCircle,
+                      { 
+                        width: responsiveSizes.activeCircleSize,
+                        height: responsiveSizes.activeCircleSize,
+                        borderRadius: responsiveSizes.activeCircleBorderRadius,
+                        marginBottom: -Math.round(responsiveSizes.activeCircleSize * 0.05), // Minimal overlap
+                        marginTop: 4, // Add top margin to push it down
+                        shadowRadius: responsiveSizes.shadowRadius,
+                        shadowOffset: responsiveSizes.shadowOffset,
+                        elevation: getResponsiveElevation(12),
+                        transform: [{ scale: activeTabScale }]
+                      }
+                    ]}
+                  >
+                    {renderIconFor(route.name, focused, responsiveSizes.iconSize)}
+                  </Animated.View>
+                )}
+                
+                {/* Inactive tab: simple icon */}
+                {!focused && (
+                  <View style={[
+                    clinicPillStyles.inactiveIcon,
+                    {
+                      width: responsiveSizes.inactiveIconSize,
+                      height: responsiveSizes.inactiveIconSize,
+                      marginBottom: responsiveSizes.inactiveIconMarginBottom
+                    }
+                  ]}>
+                    {renderIconFor(route.name, focused, responsiveSizes.inactiveIconSize)}
+                  </View>
+                )}
+                
+                {/* Tab label */}
+                <Text 
+                  style={[
+                    clinicPillStyles.tabLabel,
+                    {
+                      fontSize: responsiveSizes.labelFontSize,
+                      marginTop: responsiveSizes.labelMarginTop
+                    },
+                    focused ? clinicPillStyles.activeLabelColor : clinicPillStyles.inactiveLabelColor
+                  ]}
+                >
+                  {label}
                 </Text>
-              </View>
-            </TouchableOpacity>
-          );
-        })}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
     </View>
   );
 }
 
-function renderIconFor(routeName: string, focused: boolean, inCircle: boolean = false) {
-  const circleColor = '#fff';
-  const activeColor = inCircle ? circleColor : PINK;
-  const inactiveColor = inCircle ? circleColor : '#666';
+function renderIconFor(routeName: string, focused: boolean, iconSize?: number) {
+  const getIconName = () => {
+    switch (routeName) {
+      case 'ClinicHome':
+        return focused ? 'home' : 'home-outline';
+      case 'ClinicCalendar':
+        return focused ? 'time' : 'time-outline';
+      case 'ClinicGallery':
+        return focused ? 'images' : 'images-outline';
+      case 'ClinicNotifications':
+        return focused ? 'notifications' : 'notifications-outline';
+      case 'ClinicSettings':
+        return focused ? 'settings' : 'settings-outline';
+      default:
+        return 'home-outline';
+    }
+  };
 
-  switch (routeName) {
-    case 'ClinicHome':
-      return <Ionicons name={focused ? 'home' : 'home-outline'} size={22} color={focused ? activeColor : inactiveColor} />;
-    case 'ClinicAppointments':
-      return <Ionicons name={focused ? 'calendar' : 'calendar-outline'} size={22} color={focused ? activeColor : inactiveColor} />;
-    case 'ClinicCalendar':
-      return <Ionicons name={focused ? 'time' : 'time-outline'} size={22} color={focused ? activeColor : inactiveColor} />;
-    case 'ClinicGallery':
-      return <Ionicons name={focused ? 'images' : 'images-outline'} size={22} color={focused ? activeColor : inactiveColor} />;
-    case 'ClinicNotifications':
-      return (
-        <View style={styles.iconContainer}>
-          <Ionicons name={focused ? 'notifications' : 'notifications-outline'} size={22} color={focused ? activeColor : inactiveColor} />
-        </View>
-      );
-    case 'ClinicSettings':
-      return <Ionicons name={focused ? 'settings' : 'settings-outline'} size={22} color={focused ? activeColor : inactiveColor} />;
-    default:
-      return <Ionicons name={'home-outline'} size={22} color={focused ? activeColor : inactiveColor} />;
-  }
+  const iconColor = focused ? WHITE : INACTIVE_GRAY;
+  const responsiveIconSize = iconSize || getResponsiveTabBarSizes().iconSize;
+
+  return (
+    <Ionicons 
+      name={getIconName()} 
+      size={responsiveIconSize} 
+      color={iconColor} 
+    />
+  );
 }
 
-const customStyles = StyleSheet.create({
+// Pill-shaped tab bar styles for clinic interface (responsive values are applied dynamically)
+const clinicPillStyles = StyleSheet.create({
   container: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    alignItems: 'center',
     zIndex: 10,
+    height: 95, // Increased height for better fit
+    justifyContent: 'flex-end',
+    // Responsive values applied dynamically: paddingHorizontal, paddingTop
   },
-  pillBackground: {
-    width: '100%',
-    height: 64,
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    borderBottomLeftRadius: 0,
+  pillCard: {
+    backgroundColor: TAB_BAR_BG,
+    paddingHorizontal: 0, // Remove horizontal padding so it extends to edges
+    paddingVertical: 12,
+    shadowColor: SHADOW_COLOR,
+    shadowOpacity: 0.1,
+    marginHorizontal: 0,
+    borderBottomLeftRadius: 0, // Remove bottom radius so it fits to bottom
     borderBottomRightRadius: 0,
-    borderTopWidth: 1,
-    borderTopColor: '#EEE',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  centerButtonWrapper: {
-    position: 'absolute',
-    bottom: 24,
-    width: 68,
-    height: 68,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 20,
-  },
-  centerButton: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: PINK,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 12,
-  },
-  centerButtonActive: {
-    transform: [{ scale: 1.02 }],
-    borderWidth: 3,
-    borderColor: '#fff',
+    // Responsive values applied dynamically: borderRadius for top only, shadowRadius, shadowOffset, elevation
   },
   tabRow: {
-    position: 'absolute',
-    bottom: 12,
-    left: 0,
-    right: 0,
     flexDirection: 'row',
+    alignItems: 'center', // Changed from flex-end to center
     justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    marginHorizontal: 0,
-    zIndex: 15,
+    // height will be set dynamically
   },
-  tabButton: {
+  tabItem: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
+    // Responsive values applied dynamically: minHeight, minWidth, paddingBottom
   },
-  tabInner: {
+  activeCircle: {
+    backgroundColor: ACTIVE_BLUE,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: SHADOW_COLOR,
+    shadowOpacity: 0.2,
+    // Responsive values applied dynamically: width, height, borderRadius, marginBottom, shadowRadius, shadowOffset, elevation
+  },
+  inactiveIcon: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    // Responsive values applied dynamically: width, height, marginBottom
   },
   tabLabel: {
-    color: '#222',
-    fontSize: 11,
-    marginTop: 4,
-    fontWeight: '600',
+    fontWeight: '500',
+    textAlign: 'center',
+    // Responsive values applied dynamically: fontSize, marginTop
+  },
+  activeLabelColor: {
+    color: ACTIVE_BLUE,
+  },
+  inactiveLabelColor: {
+    color: INACTIVE_GRAY,
   },
 });

@@ -85,6 +85,12 @@ export default function App() {
 const AppNavigator: React.FC<{ navigationRef: React.MutableRefObject<any> }> = ({ navigationRef }) => {
   const { user, loading } = useAuth();
 
+  // Debug logging for navigation state
+  React.useEffect(() => {
+    console.log('App Navigator - User state changed:', user ? `User: ${user.email} (verified: ${!!user.email_verified_at})` : 'No user');
+    console.log('Stack Navigator - Will render routes for:', user ? 'authenticated' : 'unauthenticated');
+  }, [user]);
+
   // Show splash screen while checking for authentication
   if (loading) {
     return <AppSplashScreen />;

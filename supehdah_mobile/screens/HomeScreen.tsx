@@ -52,6 +52,9 @@ type UserStats = {
   total_appointments: number;
   upcoming_appointments: number;
   total_pets: number;
+  completed_appointments: number;
+  cancelled_appointments: number;
+  user_since: string;
 };
 
 export default function HomeScreen() {
@@ -158,17 +161,30 @@ export default function HomeScreen() {
                    await AsyncStorage.getItem('userToken') || 
                    await AsyncStorage.getItem('accessToken');
       
-      if (!token) return;
+      if (!token) {
+        console.log('No token found for user stats');
+        return;
+      }
 
-      const response = await API.get('/user/stats', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      console.log('Fetching user stats...');
+      const response = await API.get('/user/stats');
       
       if (response.data) {
+        console.log('User stats fetched successfully:', response.data);
         setUserStats(response.data);
       }
     } catch (e: any) {
       console.error('Failed to fetch user stats:', e);
+      
+      // Set default stats if API fails
+      setUserStats({
+        total_pets: 0,
+        upcoming_appointments: 0,
+        total_appointments: 0,
+        completed_appointments: 0,
+        cancelled_appointments: 0,
+        user_since: new Date().toISOString().split('T')[0]
+      });
     }
   }, []);
 

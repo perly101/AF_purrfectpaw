@@ -215,8 +215,8 @@ Route::prefix('test')->group(function () {
     })->name('test.global-notifications');
     
     // SMS Test Routes
-    Route::get('/sms', [\App\Http\Controllers\Test\SmsTestController::class, 'test'])->name('test.sms');
-    Route::get('/sms/appointment-confirmation', [\App\Http\Controllers\Test\SmsTestController::class, 'testAppointmentConfirmation'])->name('test.sms.appointment-confirmation');
+    // Route::get('/sms', [\App\Http\Controllers\Test\SmsTestController::class, 'test'])->name('test.sms');
+    // Route::get('/sms/appointment-confirmation', [\App\Http\Controllers\Test\SmsTestController::class, 'testAppointmentConfirmation'])->name('test.sms.appointment-confirmation');
     Route::get('/sms/page', function() {
         return view('test.sms-test');
     })->name('test.sms.page');

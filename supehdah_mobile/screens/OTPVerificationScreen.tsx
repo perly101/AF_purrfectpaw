@@ -16,6 +16,8 @@ import { API } from '../src/api';
 import { OtpApi } from '../src/otpApi';
 import { useNavigation, CommonActions } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useAuth } from '../src/contexts/AuthContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const PINK = '#FFC1CC';
 const DARK = '#333';
@@ -34,6 +36,7 @@ export default function OTPVerificationScreen({ route }: OTPVerificationScreenPr
   const [countdown, setCountdown] = useState<number>(30);
   const [canResend, setCanResend] = useState<boolean>(false);
   const navigation = useNavigation();
+  const { updateUser, signIn } = useAuth();
   
   // Create refs for the input fields
   const inputRefs = useRef<Array<TextInput | null>>([null, null, null, null, null, null]);
@@ -92,22 +95,53 @@ export default function OTPVerificationScreen({ route }: OTPVerificationScreenPr
       const response = await OtpApi.verifyOtp(otp);
       console.log('Verify OTP response:', response);
       
+      // Update user context with verified user data and re-authenticate
+      if (response.user) {
+        console.log('Re-authenticating user with verified user data');
+        
+        // Get the current token
+        const currentToken = await AsyncStorage.getItem('token') || 
+                           await AsyncStorage.getItem('userToken') || 
+                           await AsyncStorage.getItem('accessToken');
+        
+        if (currentToken) {
+          // Use signIn to properly authenticate with the verified user data
+          // This will trigger the navigation re-render with authenticated routes
+          await signIn(currentToken, response.user);
+          console.log('Successfully re-authenticated with verified user data');
+        } else {
+          // Fallback: just update the user
+          updateUser(response.user);
+        }
+      }
+      
       // Clear verification pending flag
       await OtpApi.clearVerificationPending();
       
       Alert.alert(
         'Success',
-        'Email verified successfully!',
+        'Email verified successfully! Welcome to PurrfectPaw!',
         [
           { 
-            text: 'OK', 
+            text: 'Continue', 
             onPress: () => {
-              navigation.dispatch(
-                CommonActions.reset({
-                  index: 0,
-                  routes: [{ name: 'PersonalTabs' }]
-                })
-              );
+              // The AuthContext should now show authenticated routes automatically
+              console.log('OTP verification complete, AuthContext should show PersonalTabs');
+              
+              // Small delay to allow AuthContext state to update, then try manual navigation as fallback
+              setTimeout(() => {
+                try {
+                  navigation.dispatch(
+                    CommonActions.reset({
+                      index: 0,
+                      routes: [{ name: 'PersonalTabs' }]
+                    })
+                  );
+                } catch (navError) {
+                  console.log('Manual navigation failed, relying on AuthContext:', navError);
+                  // If manual navigation fails, the AuthContext should handle it automatically
+                }
+              }, 500);
             }
           }
         ]

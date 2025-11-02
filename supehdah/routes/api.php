@@ -26,6 +26,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/profile/appointments', [\App\Http\Controllers\API\ProfileController::class, 'appointments']);
     Route::get('/profile/appointments/{id}', [\App\Http\Controllers\API\ProfileController::class, 'appointmentDetails']);
     
+    // User statistics for dashboard
+    Route::get('/user/stats', [\App\Http\Controllers\API\ProfileController::class, 'stats']);
+    
     // OTP Verification API Routes with rate limiting
     // Maximum 5 attempts per minute for OTP verification
     Route::middleware('throttle:5,1')->group(function () {
