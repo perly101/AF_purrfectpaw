@@ -84,8 +84,12 @@
                             <label for="reference_number" class="block text-sm font-medium text-gray-700 text-left mb-1">GCash Reference Number <span class="text-red-500">*</span></label>
                             <input type="text" id="reference_number" name="reference_number" required
                                 class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                                placeholder="Enter your GCash reference number">
-                            <p class="mt-1 text-xs text-gray-500 text-left">This is the reference number provided by GCash after your transaction. The admin will verify this number.</p>
+                                placeholder="Enter 9-digit GCash reference number"
+                                maxlength="9"
+                                pattern="[0-9]{9}"
+                                title="Please enter exactly 9 digits"
+                                oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0,9)">
+                            <p class="mt-1 text-xs text-gray-500 text-left">Enter exactly 9 digits from your GCash transaction reference number.</p>
                             
                             @error('reference_number')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -103,4 +107,58 @@
             </div>
         </div>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const referenceInput = document.getElementById('reference_number');
+            const submitButton = document.querySelector('button[type="submit"]');
+            const form = document.querySelector('form');
+
+            // Real-time validation feedback
+            referenceInput.addEventListener('input', function() {
+                const value = this.value;
+                const isValid = /^[0-9]{9}$/.test(value);
+                
+                // Update input styling based on validity
+                if (value.length === 0) {
+                    // Empty state
+                    this.classList.remove('border-green-500', 'border-red-500');
+                    this.classList.add('border-gray-300');
+                } else if (isValid) {
+                    // Valid 9 digits
+                    this.classList.remove('border-red-500', 'border-gray-300');
+                    this.classList.add('border-green-500');
+                } else {
+                    // Invalid (wrong length or non-numeric)
+                    this.classList.remove('border-green-500', 'border-gray-300');
+                    this.classList.add('border-red-500');
+                }
+                
+                // Update submit button state
+                if (isValid) {
+                    submitButton.disabled = false;
+                    submitButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                } else {
+                    submitButton.disabled = true;
+                    submitButton.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+            });
+
+            // Form submission validation
+            form.addEventListener('submit', function(e) {
+                const referenceValue = referenceInput.value;
+                
+                if (!/^[0-9]{9}$/.test(referenceValue)) {
+                    e.preventDefault();
+                    alert('Please enter exactly 9 digits for the GCash reference number.');
+                    referenceInput.focus();
+                    return false;
+                }
+            });
+
+            // Initialize button state
+            submitButton.disabled = true;
+            submitButton.classList.add('opacity-50', 'cursor-not-allowed');
+        });
+    </script>
 </x-app-layout>

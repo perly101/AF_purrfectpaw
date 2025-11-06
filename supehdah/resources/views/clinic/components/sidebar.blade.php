@@ -179,7 +179,7 @@
                     @endif
                 </a>
             </li>
-            
+<!--             
             <li>
                 <a href="{{ route('clinic.appointments.archived') }}"
                    class="nav-item group flex items-center px-4 py-3 rounded-lg {{ $currentRoute === 'clinic.appointments.archived' ? 'bg-gradient-to-r from-indigo-600/50 to-indigo-700/30 text-white shadow-sm' : 'hover:text-white' }} transition-all duration-200">
@@ -194,22 +194,9 @@
                         <span class="ml-auto bg-indigo-500/20 text-indigo-300 text-xs py-0.5 px-1.5 rounded-sm">Active</span>
                     @endif
                 </a>
-            </li>
+            </li> -->
             
-            <li>
-                <a href="{{ route('clinic.availability.index') }}"
-                   class="nav-item group flex items-center px-4 py-3 rounded-lg {{ str_starts_with($currentRoute, 'clinic.availability.') ? 'bg-gradient-to-r from-indigo-600/50 to-indigo-700/30 text-white shadow-sm' : 'hover:text-white' }} transition-all duration-200">
-                    <div class="mr-3 flex items-center justify-center w-6 h-6 {{ str_starts_with($currentRoute, 'clinic.availability.') ? 'text-indigo-300' : 'text-indigo-400 group-hover:text-indigo-300' }} transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" />
-                        </svg>
-                    </div>
-                    <span class="font-medium">Availability</span>
-                    @if(str_starts_with($currentRoute, 'clinic.availability.'))
-                        <span class="ml-auto bg-indigo-500/20 text-indigo-300 text-xs py-0.5 px-1.5 rounded-sm">Active</span>
-                    @endif
-                </a>
-            </li>
+
 
             <li>
                 <a href="{{ route('clinic.doctors.index') }}"
@@ -254,42 +241,6 @@
                         <span class="ml-auto bg-indigo-500/20 text-indigo-300 text-xs py-0.5 px-1.5 rounded-sm">Active</span>
                     @endif
                 </a>
-            </li>
-            
-            <li>
-                <div class="relative" x-data="{ open: false }">
-                    <a href="{{ route('clinic.notifications.index') }}"
-                       class="nav-item group flex items-center px-4 py-3 rounded-lg {{ str_starts_with($currentRoute, 'clinic.notifications.') ? 'bg-gradient-to-r from-indigo-600/50 to-indigo-700/30 text-white shadow-sm' : 'hover:text-white' }} transition-all duration-200">
-                        <div class="mr-3 flex items-center justify-center w-6 h-6 {{ str_starts_with($currentRoute, 'clinic.notifications.') ? 'text-indigo-300' : 'text-indigo-400 group-hover:text-indigo-300' }} transition-colors">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
-                            </svg>
-                        </div>
-                        <span class="font-medium">Notifications</span>
-                        @php
-                            $unreadNotificationsCount = $clinic->notifications()->whereNull('read_at')->count();
-                        @endphp
-                        @if($unreadNotificationsCount > 0)
-                            <span class="ml-auto inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-indigo-100 bg-indigo-600 rounded-full">
-                                {{ $unreadNotificationsCount }}
-                            </span>
-                        @endif
-                        @if(str_starts_with($currentRoute, 'clinic.notifications.'))
-                            <span class="ml-auto bg-indigo-500/20 text-indigo-300 text-xs py-0.5 px-1.5 rounded-sm">Active</span>
-                        @endif
-                    </a>
-                    
-                    <div class="ml-9 mt-1 pl-2 border-l border-indigo-500/30">
-                        <a href="{{ route('clinic.notifications.settings') }}" 
-                           class="group flex items-center px-3 py-2 text-xs rounded-md {{ $currentRoute === 'clinic.notifications.settings' ? 'text-indigo-300 bg-indigo-500/10' : 'text-indigo-400 hover:text-indigo-300' }}">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            </svg>
-                            <span>Notification Settings</span>
-                        </a>
-                    </div>
-                </div>
             </li>
 
             <div class="flex items-center px-4 mb-3 mt-6">

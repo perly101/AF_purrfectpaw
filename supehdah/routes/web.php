@@ -35,7 +35,10 @@ use App\Http\Controllers\Doctor\NotificationController as DoctorNotificationCont
 
 // Public route: Landing page
 use App\Http\Controllers\LandingController;
+use App\Http\Controllers\SiteCommentController;
 Route::get('/', [LandingController::class, 'index'])->name('landing');
+// Site comments (public)
+Route::post('/site-comments', [SiteCommentController::class, 'store'])->name('site.comments.store');
 
 // Google OAuth Routes
 Route::get('/auth/google', [App\Http\Controllers\Auth\GoogleController::class, 'redirectToGoogle'])->name('auth.google');

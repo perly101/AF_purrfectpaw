@@ -270,14 +270,6 @@
                     <h3 class="text-center text-gray-800 font-semibold text-lg mb-2">Mobile App</h3>
                     <p class="text-gray-600 text-sm text-center">Manage your clinic on the go with our dedicated mobile application.</p>
                 </div>
-                
-                <div class="bg-white hover:bg-gradient-to-br hover:from-purple-50 hover:to-indigo-50 border border-gray-100 rounded-xl transition duration-300 p-6 flex flex-col items-center shadow-sm hover:shadow-md feature-card">
-                    <div class="mb-4 text-indigo-500 bg-indigo-100 p-4 rounded-full">
-                        <i class="fas fa-calendar-check text-2xl"></i>
-                    </div>
-                    <h3 class="text-center text-gray-800 font-semibold text-lg mb-2">Inventory Management</h3>
-                    <p class="text-gray-600 text-sm text-center">Track supplies, medications, and automatically generate reorder alerts.</p>
-                </div>
             </div>
         </div>
     </div>
@@ -302,9 +294,10 @@
                 </div>
             </div>
             
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <!-- Monthly Subscription Plan -->
-                <div id="monthly-plan" class="bg-white rounded-lg overflow-hidden shadow-md border-2 border-purple-400 transform scale-105 z-10 transition hover:shadow-lg">
+            <div class="flex justify-center">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl">
+                    <!-- Monthly Subscription Plan -->
+                    <div id="monthly-plan" class="bg-white rounded-lg overflow-hidden shadow-md border-2 border-purple-400 transform scale-105 z-10 transition hover:shadow-lg">
                     <div class="p-1 bg-purple-400 text-white text-center text-sm font-semibold">
                         STANDARD PLAN
                     </div>
@@ -444,6 +437,7 @@
                         </div>
                     </div>
                 </div>
+                </div>
             </div>
             
             <!-- Inline JavaScript for the pricing toggle functionality -->
@@ -505,6 +499,101 @@
                         <p class="text-gray-700">Absolutely. We use industry-standard encryption and security practices to protect your clinic and patient data.</p>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Comments & Ratings Section - Public feedback -->
+    <div id="comments" class="py-16 bg-white">
+        <div class="container mx-auto px-6">
+            <div class="text-center mb-8">
+                <h2 class="text-3xl font-bold text-gray-800">Share Your Feedback</h2>
+                <p class="text-gray-600 mt-2">Tell us what you think about PurrfectPaw. Rate us and leave a comment — we read every submission.</p>
+            </div>
+
+            <div class="max-w-3xl mx-auto mb-8">
+                @if(session('success'))
+                    <div class="mb-4 p-3 bg-green-50 border-l-4 border-green-400 text-green-700 text-sm">{{ session('success') }}</div>
+                @endif
+
+                @if($errors->any())
+                    <div class="mb-4 p-3 bg-red-50 border-l-4 border-red-400 text-red-700 text-sm">
+                        <ul class="list-disc list-inside">
+                            @foreach($errors->all() as $error)
+                                <li>{{ $error }}</li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
+
+                <form action="{{ route('site.comments.store') }}" method="POST" class="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
+                    @csrf
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <input type="text" name="name" placeholder="Your name (optional)" value="{{ old('name') }}" class="border border-gray-300 rounded-lg p-2 w-full text-sm">
+                        <input type="email" name="email" placeholder="Email (optional)" value="{{ old('email') }}" class="border border-gray-300 rounded-lg p-2 w-full text-sm">
+                    </div>
+
+                    <div class="mt-4">
+                        <label class="block text-sm text-gray-700 mb-2">Your rating</label>
+                        <div id="star-rating" class="flex items-center space-x-2">
+                            <input type="hidden" name="rating" id="rating-input" value="{{ old('rating', 5) }}">
+                            @for($i=1;$i<=5;$i++)
+                                <button type="button" class="star-btn text-xl text-gray-300 hover:text-yellow-500" data-value="{{ $i }}">
+                                    <i class="fas fa-star"></i>
+                                </button>
+                            @endfor
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <label class="block text-sm text-gray-700 mb-2">Comment</label>
+                        <textarea name="comment" rows="4" class="border border-gray-300 rounded-lg p-2 w-full text-sm" placeholder="Write your feedback here...">{{ old('comment') }}</textarea>
+                    </div>
+
+                    <div class="mt-4 text-right">
+                        <button type="submit" class="bg-purple-600 text-white px-5 py-2 rounded-lg font-semibold hover:bg-purple-700 transition">Submit Feedback</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="max-w-5xl mx-auto">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">Recent feedback</h3>
+                @php $comments = \App\Models\SiteComment::latest()->take(10)->get(); @endphp
+                @if($comments->isEmpty())
+                    <p class="text-gray-500">No feedback yet — be the first to share your thoughts.</p>
+                @else
+                    <div class="space-y-4">
+                        @foreach($comments as $c)
+                            <div class="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
+                                <div class="flex items-start justify-between">
+                                    <div>
+                                        <div class="flex items-center space-x-3">
+                                            <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 font-semibold">{{ $c->name ? strtoupper(substr($c->name,0,1)) : 'U' }}</div>
+                                            <div>
+                                                <div class="text-sm font-semibold text-gray-800">{{ $c->name ?? 'Anonymous' }}</div>
+                                                <div class="text-xs text-gray-500">{{ optional($c->created_at)->diffForHumans() }}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="text-right">
+                                        <div class="text-yellow-500">
+                                            @for($s=1;$s<=5;$s++)
+                                                @if($s <= $c->rating)
+                                                    <i class="fas fa-star"></i>
+                                                @else
+                                                    <i class="far fa-star text-gray-300"></i>
+                                                @endif
+                                            @endfor
+                                        </div>
+                                    </div>
+                                </div>
+                                @if($c->comment)
+                                    <p class="mt-3 text-gray-700">{{ $c->comment }}</p>
+                                @endif
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
             </div>
         </div>
     </div>
@@ -814,4 +903,36 @@
 
 @push('scripts')
 <script src="{{ asset('js/social-links.js') }}"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const stars = document.querySelectorAll('#star-rating .star-btn');
+        const ratingInput = document.getElementById('rating-input');
+
+        function setStars(value) {
+            stars.forEach((btn) => {
+                const val = parseInt(btn.getAttribute('data-value'));
+                if (val <= value) {
+                    btn.classList.remove('text-gray-300');
+                    btn.classList.add('text-yellow-400');
+                } else {
+                    btn.classList.remove('text-yellow-400');
+                    btn.classList.add('text-gray-300');
+                }
+            });
+        }
+
+        // initialize
+        if (ratingInput) {
+            setStars(parseInt(ratingInput.value || 5));
+        }
+
+        stars.forEach((btn) => {
+            btn.addEventListener('click', function () {
+                const v = parseInt(this.getAttribute('data-value'));
+                ratingInput.value = v;
+                setStars(v);
+            });
+        });
+    });
+</script>
 @endpush
