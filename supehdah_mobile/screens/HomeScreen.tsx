@@ -48,14 +48,7 @@ type Pet = {
   age: number;
 };
 
-type UserStats = {
-  total_appointments: number;
-  upcoming_appointments: number;
-  total_pets: number;
-  completed_appointments: number;
-  cancelled_appointments: number;
-  user_since: string;
-};
+
 
 export default function HomeScreen() {
   const navigation = useNavigation<any>();
@@ -65,7 +58,6 @@ export default function HomeScreen() {
   const [loadingUser, setLoadingUser] = React.useState<boolean>(false);
   const [appointments, setAppointments] = React.useState<Appointment[]>([]);
   const [pets, setPets] = React.useState<Pet[]>([]);
-  const [userStats, setUserStats] = React.useState<UserStats | null>(null);
   const [refreshing, setRefreshing] = React.useState<boolean>(false);
 
   const getTimeBasedGreeting = React.useCallback(() => {
@@ -73,6 +65,20 @@ export default function HomeScreen() {
     if (hour < 12) return 'Good morning,';
     if (hour < 18) return 'Good afternoon,';
     return 'Good evening,';
+  }, []);
+
+  const getCurrentTime = React.useCallback(() => {
+    const now = new Date();
+    const options: Intl.DateTimeFormatOptions = {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    };
+    return now.toLocaleDateString('en-US', options);
   }, []);
 
   const fetchUserData = React.useCallback(async () => {
@@ -155,38 +161,7 @@ export default function HomeScreen() {
     }
   }, []);
 
-  const fetchUserStats = React.useCallback(async () => {
-    try {
-      const token = await AsyncStorage.getItem('token') || 
-                   await AsyncStorage.getItem('userToken') || 
-                   await AsyncStorage.getItem('accessToken');
-      
-      if (!token) {
-        console.log('No token found for user stats');
-        return;
-      }
 
-      console.log('Fetching user stats...');
-      const response = await API.get('/user/stats');
-      
-      if (response.data) {
-        console.log('User stats fetched successfully:', response.data);
-        setUserStats(response.data);
-      }
-    } catch (e: any) {
-      console.error('Failed to fetch user stats:', e);
-      
-      // Set default stats if API fails
-      setUserStats({
-        total_pets: 0,
-        upcoming_appointments: 0,
-        total_appointments: 0,
-        completed_appointments: 0,
-        cancelled_appointments: 0,
-        user_since: new Date().toISOString().split('T')[0]
-      });
-    }
-  }, []);
 
   const fetchAllData = React.useCallback(async () => {
     if (!refreshing) setLoading(true);
@@ -194,13 +169,12 @@ export default function HomeScreen() {
     await Promise.all([
       fetchUserData(), 
       fetchAppointments(), 
-      fetchPets(), 
-      fetchUserStats()
+      fetchPets()
     ]);
 
     setLoading(false);
     setRefreshing(false);
-  }, [refreshing, fetchUserData, fetchAppointments, fetchPets, fetchUserStats]);
+  }, [refreshing, fetchUserData, fetchAppointments, fetchPets]);
 
   React.useEffect(() => {
     fetchAllData();
@@ -223,25 +197,10 @@ export default function HomeScreen() {
         <View style={styles.header}>
           <Text style={styles.greeting}>{getTimeBasedGreeting()}</Text>
           <Text style={styles.username}>{userName ?? (loadingUser ? 'Loading...' : 'User')}</Text>
+          <Text style={styles.currentTime}>{getCurrentTime()}</Text>
         </View>
 
-        {/* Stats Cards */}
-        {userStats && (
-          <View style={styles.statsContainer}>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>{userStats.total_pets}</Text>
-              <Text style={styles.statLabel}>Pets</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>{userStats.upcoming_appointments}</Text>
-              <Text style={styles.statLabel}>Upcoming</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>{userStats.total_appointments}</Text>
-              <Text style={styles.statLabel}>Total Visits</Text>
-            </View>
-          </View>
-        )}
+
 
         {/* Quick Actions with routes */}
         <View style={styles.quickActions}>
@@ -371,6 +330,7 @@ export default function HomeScreen() {
           </View>
         </View>
       </ScrollView>
+
     </SafeAreaView>
   );
 }
@@ -426,39 +386,16 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.5
   },
-
-  // Stats Cards
-  statsContainer: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    marginBottom: 20,
-    gap: 12
-  },
-  statCard: { 
-    flex: 1, 
-    backgroundColor: WHITE, 
-    borderRadius: 16, 
-    padding: 20, 
-    alignItems: 'center',
-    shadowColor: DARK,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 6
-  },
-  statNumber: { 
-    fontSize: 24, 
-    fontWeight: '800', 
-    color: PURPLE,
-    marginBottom: 4
-  },
-  statLabel: { 
-    fontSize: 12, 
-    fontWeight: '600', 
+  currentTime: {
     color: MUTED,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5
+    fontSize: 14,
+    fontWeight: '500',
+    marginTop: 8,
+    textAlign: 'center',
+    letterSpacing: 0.3
   },
+
+
 
   // Quick Actions - Modern grid
   quickActions: { 

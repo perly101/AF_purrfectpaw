@@ -6,7 +6,7 @@ import { Alert } from 'react-native';
 
 // Use only a single fixed API base URL
 const API_BASE_URLS = [
-  'http://192.168.254.115:8000/api', // Local network - update with your actual IP
+  'http://192.168.254.104:8000/api', // Local network - update with your actual IP
   'http://localhost:8000/api'    // For web debugging
 ];
 
@@ -29,13 +29,36 @@ console.log(`Initialized API with fixed base URL: ${API.defaults.baseURL}`);
 // Global navigation reference to allow programmatic navigation outside components
 let navigationRef: any = null;
 
+// Debouncing variables to prevent multiple session alerts
+let isHandlingAuthFailure = false;
+let lastAuthFailureTime = 0;
+const AUTH_FAILURE_DEBOUNCE_TIME = 3000; // 3 seconds between auth failure handling
+
 // Function to set the navigation reference from App.tsx
 export const setNavigationRef = (ref: any) => {
   navigationRef = ref;
 };
 
+// Function to reset auth failure state (call this on successful login/logout)
+export const resetAuthFailureState = () => {
+  isHandlingAuthFailure = false;
+  lastAuthFailureTime = 0;
+  console.log('🔄 Auth failure state reset');
+};
+
 // Function to handle logout and redirect to login
 export const handleAuthFailure = async () => {
+  const now = Date.now();
+  
+  // Debounce multiple auth failures to prevent spam
+  if (isHandlingAuthFailure || (now - lastAuthFailureTime) < AUTH_FAILURE_DEBOUNCE_TIME) {
+    console.log('🔄 Auth failure already being handled, skipping...');
+    return;
+  }
+  
+  isHandlingAuthFailure = true;
+  lastAuthFailureTime = now;
+  
   console.log('🔑 Auth token expired or invalid, logging out...');
   
   // Clear token and any user data from storage
@@ -58,16 +81,32 @@ export const handleAuthFailure = async () => {
       routes: [{ name: 'Login' }],
     });
     
-    // Show an alert to inform the user
+    // Show an alert to inform the user (only once)
     setTimeout(() => {
       Alert.alert(
         'Session Expired',
         'Your session has expired. Please log in again.',
-        [{ text: 'OK' }]
+        [{ 
+          text: 'OK',
+          onPress: () => {
+            // Reset the debounce flag when user dismisses alert
+            isHandlingAuthFailure = false;
+          }
+        }]
       );
+      
+      // Auto-reset after 5 seconds even if user doesn't press OK
+      setTimeout(() => {
+        if (isHandlingAuthFailure) {
+          console.log('🔄 Auto-resetting auth failure state after timeout');
+          isHandlingAuthFailure = false;
+        }
+      }, 5000);
     }, 500);
   } else {
     console.error('❌ Navigation reference not set, cannot redirect to login');
+    // Reset flag even if navigation fails
+    isHandlingAuthFailure = false;
   }
 };
 
@@ -78,10 +117,9 @@ API.interceptors.request.use(async (config) => {
                 await AsyncStorage.getItem('accessToken');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
-    console.log(" Token attached to request");
-  } else {
-    console.log(" No token found for request");
+    console.log("🔐 Token attached to request");
   }
+  // Remove the "No token found" log to reduce noise when user is not logged in
   return config;
 });
 
@@ -93,8 +131,19 @@ API.interceptors.response.use(
   async (error) => {
     // Check if the error is due to an expired/invalid token (401 Unauthorized)
     if (error.response && error.response.status === 401) {
-      console.log('🚫 Received 401 Unauthorized response');
-      await handleAuthFailure();
+      // Only handle auth failure if we actually had a token (user was logged in)
+      const hadToken = await AsyncStorage.getItem('token') || 
+                       await AsyncStorage.getItem('userToken') || 
+                       await AsyncStorage.getItem('accessToken');
+      
+      if (hadToken) {
+        console.log('🚫 Received 401 Unauthorized response with expired token');
+        await handleAuthFailure();
+      } else {
+        console.log('🚫 Received 401 Unauthorized response (no token - user not logged in)');
+        // Just pass through the error without triggering auth failure handler
+      }
+      
       return Promise.reject(error);
     }
     

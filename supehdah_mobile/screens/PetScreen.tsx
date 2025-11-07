@@ -104,6 +104,12 @@ export default function PetScreen() {
     try {
       setLoading(true);
       const token = await AsyncStorage.getItem('userToken');
+      
+      if (!token) {
+        console.log('No token found, skipping pets fetch');
+        setPets([]);
+        return;
+      }
 
       const response = await API.get('/pets', {
         headers: {
@@ -118,9 +124,14 @@ export default function PetScreen() {
         setPets([]);
         Alert.alert('Error', 'Failed to load pets');
       }
-    } catch (error) {
-      console.error('Error fetching pets:', error);
-      Alert.alert('Error', 'Failed to load pets');
+    } catch (error: any) {
+      // Only log actual errors, not auth issues
+      if (error?.response?.status !== 401) {
+        console.error('Error fetching pets:', error);
+        Alert.alert('Error', 'Failed to load pets');
+      } else {
+        setPets([]);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);

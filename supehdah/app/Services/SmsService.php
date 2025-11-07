@@ -13,12 +13,12 @@ class SmsService
 
     public function __construct()
     {
-        // Ensure SMS always works by setting reliable defaults
-        $this->apiKey = '6dff29a20c4ad21b0ff30725e15c23d0'; // Direct value to ensure it works
-        $this->senderName = 'AutoRepair'; // Direct value to ensure it works
+        // Use the new API key from .env file
+        $this->apiKey = env('SMS_API_KEY', '0b0700d7e21117262db2da04cdfb9ba8'); // Use new API key
+        $this->senderName = env('SMS_SENDER_NAME', 'AutoRepair'); // Use approved sender name from .env
         $this->baseUrl = 'https://semaphore.co/api/v4/messages';
         
-        // Try to get from environment if available, but fallback to hardcoded values
+        // Always prefer environment variable
         if (env('SMS_API_KEY')) {
             $this->apiKey = env('SMS_API_KEY');
         }
@@ -27,11 +27,11 @@ class SmsService
         }
         
         // Log configuration for debugging
-        \Illuminate\Support\Facades\Log::info('✅ SMS Service initialized RELIABLY', [
-            'api_key_set' => !empty($this->apiKey),
+        \Illuminate\Support\Facades\Log::info('🚀 SMS Service initialized with NEW API KEY', [
+            'api_key_first_10' => substr($this->apiKey, 0, 10) . '...',
             'sender_name' => $this->senderName,
             'base_url' => $this->baseUrl,
-            'guaranteed_working' => true
+            'ready_to_send' => true
         ]);
     }
 
@@ -196,7 +196,7 @@ class SmsService
     }
 
     /**
-     * Send appointment confirmation SMS
+     * Send ation SMS
      *
      * @param string $phoneNumber
      * @param array $appointmentData
@@ -209,7 +209,7 @@ class SmsService
     }
 
     /**
-     * Build appointment confirmation message
+     * Build ation message
      *
      * @param array $appointmentData
      * @return string
@@ -229,28 +229,11 @@ class SmsService
             $doctorNameClean = "Dr. " . $doctorNameClean;
         }
 
-        // Build professional appointment confirmation message
-        $message = "=== APPOINTMENT CONFIRMED ===\n\n";
-        $message .= "CLINIC: {$clinicName}\n";
-        $message .= "APPOINTMENT DETAILS:\n";
-        $message .= "Date: {$appointmentDate}\n";
-        $message .= "Time: {$appointmentTime}\n";
-        $message .= "Patient: {$petName}\n\n";
-        $message .= "ATTENDING VETERINARIAN:\n";
-        $message .= "{$doctorNameClean}\n";
-        $message .= "({$clinicName})\n\n";
-        $message .= "PREPARATION CHECKLIST:\n";
-        $message .= "- Arrive 15 minutes prior to appointment\n";
-        $message .= "- Bring medical history records\n";
-        $message .= "- List any current medications\n";
-        $message .= "- Prepare questions for the veterinarian\n\n";
-        $message .= "APPOINTMENT CONFIRMED BY:\n";
-        $message .= "{$doctorNameClean}\n";
-        $message .= "{$clinicName}\n\n";
-        $message .= "For inquiries or rescheduling, please contact {$clinicName} directly.\n\n";
-        $message .= "Thank you for trusting {$clinicName} with {$petName}'s healthcare.\n\n";
-        $message .= "Best regards,\n";
-        $message .= "{$clinicName} Team";
+        // Build a concise appointment confirmation message (short for SMS)
+        // Example: "PurrfectPaw: Appointment confirmed for Bella on Nov 10, 2025 at 10:00 AM with Dr. Cruz. Reply to reschedule."
+        $shortDate = $appointmentDate ?: '';
+        $shortTime = $appointmentTime ?: '';
+        $message = "{$clinicName}: Appointment confirmed on {$shortDate} at {$shortTime} with {$doctorNameClean}. contact us to reschedule.";
 
         // Add a tiny debug log so callers can see formatted messages in the logs
         \Illuminate\Support\Facades\Log::debug('Built appointment confirmation SMS', [
@@ -311,27 +294,7 @@ class SmsService
         // Get doctor name for cancellation
         $doctorNameFormatted = isset($appointmentData['doctor_name']) ? $appointmentData['doctor_name'] : 'Available Doctor';
         
-        $message = "=== APPOINTMENT CANCELLED ===\n\n";
-        $message .= "CLINIC: {$clinicName}\n";
-        $message .= "========================================\n\n";
-        $message .= "CANCELLED APPOINTMENT DETAILS:\n";
-        $message .= "Date: {$appointmentDate}\n";
-        $message .= "Time: {$appointmentTime}\n";
-        $message .= "Patient: {$petName}\n";
-        $message .= "Doctor: {$doctorNameFormatted}\n\n";
-        $message .= "CANCELLATION NOTICE:\n";
-        $message .= "We regret to inform you that your appointment has been cancelled by {$doctorNameFormatted} at {$clinicName}.\n\n";
-        $message .= "NEXT STEPS:\n";
-        $message .= "- Contact {$clinicName} to reschedule\n";
-        $message .= "- We will accommodate your preferred date and time\n";
-        $message .= "- Priority booking available for rescheduled appointments\n\n";
-        $message .= "CANCELLED BY:\n";
-        $message .= "{$doctorNameFormatted}\n";
-        $message .= "{$clinicName}\n\n";
-        $message .= "We sincerely apologize for any inconvenience caused.\n\n";
-        $message .= "Best regards,\n";
-        $message .= "{$clinicName} Team";
-
+        $message = "Your appointment at {$clinicName}  ({$appointmentDate}) at {$appointmentTime} is cancelled. Please contact us to reschedule.";
         return $message;
     }
 }

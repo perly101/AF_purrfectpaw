@@ -58,6 +58,16 @@ export default function SettingsScreen() {
     let isMounted = true;
     const fetchMe = async () => {
       try {
+        // Check if user has a token before attempting to fetch user data
+        const token = await AsyncStorage.getItem('token') || 
+                     await AsyncStorage.getItem('userToken') || 
+                     await AsyncStorage.getItem('accessToken');
+        
+        if (!token) {
+          console.log('No auth token available, skipping user data fetch');
+          return;
+        }
+        
         setLoadingUser(true);
         const res = await API.get('/me');
         if (isMounted) {
@@ -82,8 +92,11 @@ export default function SettingsScreen() {
           setEmailInput(userData?.email ?? '');
           setPhoneNumberInput(userData?.phone_number ?? '');
         }
-      } catch (e) {
-        console.error('Error fetching user data:', e);
+      } catch (e: any) {
+        // Only log detailed errors for non-auth issues to reduce console spam
+        if (e?.response?.status !== 401 && e?.response?.status !== 429) {
+          console.error('Error fetching user data:', e);
+        }
       } finally {
         if (isMounted) setLoadingUser(false);
       }

@@ -124,7 +124,8 @@ class AppointmentController extends Controller
             Log::info('🚀 DOCTOR CONFIRMING APPOINTMENT - SENDING SMS IMMEDIATELY', [
                 'appointment_id' => $appointment->id,
                 'patient_phone' => $appointment->owner_phone,
-                'time' => now()->format('H:i:s')
+                'time' => now()->format('H:i:s'),
+                'api_key_first_10' => substr(env('SMS_API_KEY'), 0, 10) . '...'
             ]);
             
             try {

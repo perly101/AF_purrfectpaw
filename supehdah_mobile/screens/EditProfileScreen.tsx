@@ -3,6 +3,7 @@ import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert } from 'reac
 import { useNavigation } from '@react-navigation/native';
 import { API } from '../src/api';
 import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function EditProfileScreen() {
   const navigation = useNavigation();
@@ -14,6 +15,12 @@ export default function EditProfileScreen() {
   useEffect(() => {
     const fetchUser = async () => {
       try {
+        const token = await AsyncStorage.getItem('userToken');
+        if (!token) {
+          console.log('No token found, user not logged in');
+          return;
+        }
+        
         const res = await API.get('/user');
         setName(res.data.name);
         setEmail(res.data.email);

@@ -4,13 +4,8 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
 
-// Use only a single fixed API base URL
-const API_BASE_URLS = [
-  'http://192.168.1.4:8000/api' // Local network
-];
-
-// Use the fixed base URL - no need to detect or store it anymore
-const API_BASE_URL = API_BASE_URLS[0];
+// Production API URL
+const API_BASE_URL = 'https://pearlpetallo.site/api';
 
 // Create API instance with our fixed URL
 export const API = axios.create({
@@ -28,78 +23,48 @@ console.log(`Initialized API with fixed base URL: ${API.defaults.baseURL}`);
 // Global navigation reference to allow programmatic navigation outside components
 let navigationRef: any = null;
 
+// Flag to prevent multiple auth failure handling
+let isHandlingAuthFailure = false;
+
+// Flag to indicate if user is in logout process
+let isLoggingOut = false;
+
+// Flag to indicate if app is initializing
+let isAppInitializing = true;
+
 // Function to set the navigation reference from App.tsx
 export const setNavigationRef = (ref: any) => {
   navigationRef = ref;
 };
 
-// Keep track of auth failures to prevent repeated alerts
-let authFailureHandled = false;
-let lastAuthFailureTime = 0;
-const AUTH_FAILURE_COOLDOWN = 5000; // 5 seconds
+// Function to reset auth failure state (call after successful login)
+export const resetAuthFailureState = () => {
+  isHandlingAuthFailure = false;
+  console.log('🔄 Auth failure state reset');
+};
 
-// Try to refresh the auth token
-export const attemptTokenRefresh = async (): Promise<boolean> => {
-  console.log('🔄 Attempting to refresh auth token...');
-  
-  try {
-    // Check if we have a refresh token
-    const refreshToken = await AsyncStorage.getItem('refreshToken');
-    if (!refreshToken) {
-      console.log('❌ No refresh token available');
-      return false;
-    }
-    
-    // Create a new axios instance for the refresh request to avoid interceptors
-    const refreshAPI = axios.create({
-      baseURL: API_BASE_URL,
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      timeout: 10000
-    });
-    
-    // Try to refresh the token
-    const response = await refreshAPI.post('/refresh-token', { refresh_token: refreshToken });
-    
-    if (response.data && response.data.token) {
-      console.log('✅ Token refresh successful');
-      
-      // Save the new tokens
-      await AsyncStorage.setItem('token', response.data.token);
-      await AsyncStorage.setItem('accessToken', response.data.token);
-      
-      if (response.data.refresh_token) {
-        await AsyncStorage.setItem('refreshToken', response.data.refresh_token);
-      }
-      
-      return true;
-    }
-    
-    console.log('❌ Token refresh failed - invalid response');
-    return false;
-  } catch (error) {
-    console.log('❌ Token refresh failed with error:', error);
-    return false;
-  }
+// Function to set logout state (call before logout to prevent session expired alerts)
+export const setLoggingOut = (loggingOut: boolean) => {
+  isLoggingOut = loggingOut;
+  console.log('🚪 Logout state set to:', loggingOut);
+};
+
+// Function to set app initialization state (call after app fully loads)
+export const setAppInitialized = () => {
+  isAppInitializing = false;
+  console.log('🚀 App initialization complete');
 };
 
 // Function to handle logout and redirect to login
 export const handleAuthFailure = async () => {
-  const now = Date.now();
-  
-  // Check if we've handled an auth failure recently to avoid spamming the user
-  if (authFailureHandled && (now - lastAuthFailureTime < AUTH_FAILURE_COOLDOWN)) {
-    console.log('� Auth failure already being handled, skipping duplicate');
+  // Prevent multiple simultaneous calls
+  if (isHandlingAuthFailure) {
+    console.log('� Auth failure already being handled, skipping...');
     return;
   }
   
-  // Set flags to prevent duplicate handling
-  authFailureHandled = true;
-  lastAuthFailureTime = now;
-  
+  isHandlingAuthFailure = true;
   console.log('�🔑 Auth token expired or invalid, logging out...');
-  
-  // Check if we're in a verification flow
-  const inVerificationFlow = await AsyncStorage.getItem('verification_flow') === 'true';
   
   // Clear token and any user data from storage
   try {
@@ -112,190 +77,87 @@ export const handleAuthFailure = async () => {
     console.error('Error clearing auth data:', e);
   }
   
-  // Skip redirection if we're already on the login or OTP screen
-  setTimeout(() => {
-    authFailureHandled = false; // Reset the flag after some time
-  }, AUTH_FAILURE_COOLDOWN);
-  
   // Redirect to login screen if navigation is available
   if (navigationRef) {
     console.log('🔄 Redirecting to login screen');
-    
     // Use reset navigation to go to login
     navigationRef.reset({
       index: 0,
       routes: [{ name: 'Login' }],
     });
     
-    // Different message based on verification flow
-    if (inVerificationFlow) {
-      setTimeout(() => {
-        Alert.alert(
-          'Verification Session Expired',
-          'Your verification session has expired. Please log in again to continue verification.',
-          [{ text: 'OK' }]
-        );
-      }, 500);
-    } else {
-      setTimeout(() => {
-        Alert.alert(
-          'Session Expired',
-          'Your session has expired. Please log in again.',
-          [{ text: 'OK' }]
-        );
-      }, 500);
-    }
+    // Show an alert to inform the user (only once)
+    setTimeout(() => {
+      Alert.alert(
+        'Session Expired',
+        'Your session has expired. Please log in again.',
+        [{ 
+          text: 'OK',
+          onPress: () => {
+            // Reset the flag when user acknowledges the alert
+            isHandlingAuthFailure = false;
+          }
+        }],
+        { cancelable: false }
+      );
+    }, 500);
+    
+    // Also reset the flag after 30 seconds as a failsafe
+    setTimeout(() => {
+      if (isHandlingAuthFailure) {
+        console.log('🔄 Resetting auth failure state after timeout');
+        isHandlingAuthFailure = false;
+      }
+    }, 30000);
   } else {
     console.error('❌ Navigation reference not set, cannot redirect to login');
+    // Reset flag even if navigation fails
+    isHandlingAuthFailure = false;
   }
 };
 
-// Track request timestamps to prevent excessive requests
-const requestTimestamps: { [key: string]: number } = {};
-const MIN_REQUEST_INTERVAL = 2000; // 2 seconds
-
 // Automatically attach token to every request
 API.interceptors.request.use(async (config) => {
-  // Track login requests to prevent infinite loops
-  if (config.url?.includes('/login')) {
-    loginRequestInProgress = true;
-  }
-
-  // Rate limiting for same endpoint
-  const requestKey = `${config.method}-${config.url}`;
-  const lastRequestTime = requestTimestamps[requestKey] || 0;
-  const now = Date.now();
-  
-  // If this is a repeated request too soon, block it unless it's a critical endpoint
-  if (now - lastRequestTime < MIN_REQUEST_INTERVAL && 
-      !config.url?.includes('login') && 
-      !config.url?.includes('register')) {
-    console.log(`⚠️ Blocking too frequent request to ${requestKey}`);
-    return Promise.reject({
-      message: 'Too many requests, please wait',
-      config,
-      response: { status: 429 }
-    });
-  }
-  
-  // Update the timestamp for this request
-  requestTimestamps[requestKey] = now;
-  
-  // Get auth token
   const token = await AsyncStorage.getItem('token') || 
                 await AsyncStorage.getItem('userToken') || 
                 await AsyncStorage.getItem('accessToken');
-  
-  // For debugging current navigation state
-  let currentScreen = 'unknown';
-  if (navigationRef && navigationRef.getCurrentRoute) {
-    try {
-      currentScreen = navigationRef.getCurrentRoute()?.name || 'unknown';
-      console.log(`🧭 Current navigation screen: ${currentScreen}`);
-    } catch (e) {
-      console.error('Error getting current route:', e);
-    }
-  }
-  
-  // Only attach token and make requests requiring auth if we have a token
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
-    console.log("🔑 Token attached to request");
+    console.log(" Token attached to request");
   } else {
-    // Skip token checks if we're on login or registration screens
-    if (currentScreen === 'Login' || currentScreen === 'Register' || currentScreen === 'OTPVerification') {
-      console.log(`🔄 On ${currentScreen} screen, proceeding without token`);
-      return config;
-    }
-    
-    // If this is an authenticated endpoint and we have no token,
-    // don't even make the request to prevent 401 errors
-    if (config.url && 
-        (config.url.includes('/me') || 
-         config.url.includes('/user') || 
-         config.url.includes('/pets') ||
-         config.url.includes('/verify-otp') ||
-         config.url.includes('/resend-otp'))) {
-      console.log(`🛑 Blocking auth request to ${config.url} - no token available`);
-      
-      // Only trigger auth failure if we're not already on login screen
-      if (currentScreen !== 'Login' && currentScreen !== 'Register') {
-        console.log('🔄 No token for auth request, redirecting to login');
-        setTimeout(() => handleAuthFailure(), 0);
-      }
-      
-      return Promise.reject({
-        message: 'Authentication required',
-        config,
-        response: { status: 401 }
-      });
-    }
-    console.log("⚠️ No token found for request");
+    console.log(" No token found for request");
   }
-  
   return config;
 });
-
-// Track auth-related requests to prevent infinite loops
-let loginRequestInProgress = false;
 
 // Response interceptor to handle auth errors
 API.interceptors.response.use(
   (response) => {
-    // Check if this was a successful login request
-    if (response.config.url?.includes('/login') && response.status === 200) {
-      loginRequestInProgress = false;
-    }
     return response;
   },
   async (error) => {
-    // Don't handle errors that we created in the request interceptor
-    if (error.config === undefined) {
-      return Promise.reject(error);
-    }
-    
-    // Special handling for login-related requests
-    const isLoginRequest = error.config.url?.includes('/login');
-    if (isLoginRequest) {
-      loginRequestInProgress = false;
-      return Promise.reject(error);
-    }
-    
-    // Handle rate limiting errors (429)
-    if (error.response && error.response.status === 429) {
-      console.log('⏳ Rate limited - too many requests');
-      // Don't redirect to login for rate limiting
-      return Promise.reject(error);
-    }
-    
     // Check if the error is due to an expired/invalid token (401 Unauthorized)
     if (error.response && error.response.status === 401) {
-      console.log('🚫 Received 401 Unauthorized response');
+      const requestUrl = error.config?.url || '';
       
-      // Skip auth failure handling if we're already processing login
-      if (loginRequestInProgress) {
-        console.log('🔄 Login already in progress, skipping auth failure handling');
-        return Promise.reject(error);
-      }
+      // Don't trigger auth failure for login/register/password reset endpoints
+      const publicEndpoints = ['/login', '/register', '/forgot-password', '/auth/login', '/auth/register'];
+      const isPublicEndpoint = publicEndpoints.some(endpoint => requestUrl.includes(endpoint));
       
-      // Get the current screen from navigation if available
-      let currentScreen = 'unknown';
-      if (navigationRef && navigationRef.getCurrentRoute) {
-        try {
-          currentScreen = navigationRef.getCurrentRoute()?.name || 'unknown';
-        } catch (e) {
-          console.error('Error getting current route:', e);
+      if (!isPublicEndpoint) {
+        // Don't trigger auth failure if user is logging out or app is initializing
+        if (isLoggingOut) {
+          console.log('� Received 401 during logout, not triggering auth failure:', requestUrl);
+        } else if (isAppInitializing) {
+          console.log('🚀 Received 401 during app initialization, not triggering auth failure:', requestUrl);
+        } else {
+          console.log('�🚫 Received 401 Unauthorized response for protected endpoint:', requestUrl);
+          await handleAuthFailure();
         }
+      } else {
+        console.log('🔓 Received 401 for public endpoint, not triggering auth failure:', requestUrl);
       }
       
-      // Skip auth failure handling if we're already on login or OTP verification screen
-      if (currentScreen === 'Login' || currentScreen === 'OTPVerification') {
-        console.log(`🔄 Already on ${currentScreen} screen, skipping auth failure handling`);
-        return Promise.reject(error);
-      }
-      
-      // Handle authentication failure
-      await handleAuthFailure();
       return Promise.reject(error);
     }
     
@@ -304,9 +166,9 @@ API.interceptors.response.use(
   }
 );
 
-// Helper function to make API requests with fixed base URL
+// Helper function to make API requests with production URL
 export const tryMultipleBaseUrls = async (endpoint: string) => {
-  const baseUrl = API_BASE_URLS[0]; // We're only using one fixed URL now
+  const baseUrl = API_BASE_URL;
   
   // Add cache-busting query parameter if not already present
   const cacheBuster = `t=${new Date().getTime()}`;
@@ -597,6 +459,192 @@ const getEndTimeFromSlot = (startTime: string, durationMinutes: number = 30): st
   return `${endHours}:${endMinutes}`;
 };
 
+// Enhanced availability API functions
+
+// Get detailed availability settings
+export const getAvailabilitySettings = async (clinicId: number) => {
+  try {
+    console.log(`Fetching availability settings for clinic ${clinicId}`);
+    const response = await API.get(ROUTES.CLINICS.AVAILABILITY.SETTINGS(clinicId));
+    console.log('Successfully fetched availability settings');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching availability settings:', error);
+    // Return default settings as fallback
+    return {
+      slot_duration: 30,
+      advance_booking_days: 30,
+      same_day_booking: true,
+      timezone: 'Asia/Manila',
+      default_start_time: '09:00:00',
+      default_end_time: '17:00:00'
+    };
+  }
+};
+
+// Get daily schedule for a specific day of week
+export const getDailySchedule = async (clinicId: number, dayOfWeek: number) => {
+  try {
+    console.log(`Fetching daily schedule for clinic ${clinicId}, day ${dayOfWeek}`);
+    const response = await API.get(ROUTES.CLINICS.AVAILABILITY.DAILY_SCHEDULE(clinicId, dayOfWeek));
+    console.log('Successfully fetched daily schedule');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching daily schedule:', error);
+    // Return default schedule as fallback
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const isClosed = dayOfWeek === 0; // Sunday closed by default
+    return {
+      day_of_week: dayOfWeek,
+      day_name: dayNames[dayOfWeek],
+      is_available: !isClosed,
+      start_time: isClosed ? null : '09:00:00',
+      end_time: isClosed ? null : '17:00:00'
+    };
+  }
+};
+
+// Get all weekly schedules
+export const getWeeklySchedule = async (clinicId: number) => {
+  try {
+    console.log(`Fetching weekly schedule for clinic ${clinicId}`);
+    const schedulePromises = [0, 1, 2, 3, 4, 5, 6].map(day => 
+      getDailySchedule(clinicId, day).catch(() => null)
+    );
+    const schedules = await Promise.all(schedulePromises);
+    
+    const weeklySchedule: any = {};
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    
+    schedules.forEach((schedule, index) => {
+      if (schedule) {
+        weeklySchedule[dayNames[index]] = {
+          start: schedule.start_time,
+          end: schedule.end_time,
+          isAvailable: schedule.is_available
+        };
+      } else {
+        weeklySchedule[dayNames[index]] = { 
+          start: null, 
+          end: null, 
+          isAvailable: false 
+        };
+      }
+    });
+    
+    console.log('Successfully fetched weekly schedule');
+    return weeklySchedule;
+  } catch (error) {
+    console.error('Error fetching weekly schedule:', error);
+    // Return default weekly schedule as fallback
+    return {
+      sunday: { start: null, end: null, isAvailable: false },
+      monday: { start: '09:00:00', end: '17:00:00', isAvailable: true },
+      tuesday: { start: '09:00:00', end: '17:00:00', isAvailable: true },
+      wednesday: { start: '09:00:00', end: '17:00:00', isAvailable: true },
+      thursday: { start: '09:00:00', end: '17:00:00', isAvailable: true },
+      friday: { start: '09:00:00', end: '17:00:00', isAvailable: true },
+      saturday: { start: '09:00:00', end: '14:00:00', isAvailable: true }
+    };
+  }
+};
+
+// Get break times
+export const getBreakTimes = async (clinicId: number) => {
+  try {
+    console.log(`Fetching break times for clinic ${clinicId}`);
+    const response = await API.get(ROUTES.CLINICS.AVAILABILITY.BREAKS(clinicId));
+    console.log('Successfully fetched break times');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching break times:', error);
+    // Return default break times as fallback
+    return [
+      {
+        id: 1,
+        name: 'Lunch Break',
+        start_time: '12:00:00',
+        end_time: '13:00:00',
+        days: [1, 2, 3, 4, 5, 6], // Monday to Saturday
+        is_active: true
+      }
+    ];
+  }
+};
+
+// Get special dates and holidays
+export const getSpecialDates = async (clinicId: number) => {
+  try {
+    console.log(`Fetching special dates for clinic ${clinicId}`);
+    const response = await API.get(ROUTES.CLINICS.AVAILABILITY.SPECIAL_DATES(clinicId));
+    console.log('Successfully fetched special dates');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching special dates:', error);
+    // Return empty array as fallback
+    return [];
+  }
+};
+
+// Get calendar dates with availability
+export const getCalendarDates = async (clinicId: number) => {
+  try {
+    console.log(`Fetching calendar dates for clinic ${clinicId}`);
+    const response = await API.get(ROUTES.CLINICS.AVAILABILITY.CALENDAR_DATES(clinicId));
+    console.log('Successfully fetched calendar dates');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching calendar dates:', error);
+    // Return empty array as fallback
+    return [];
+  }
+};
+
+// Get clinic form fields configuration
+export const getClinicFields = async (clinicId: number) => {
+  try {
+    console.log(`Fetching clinic fields for clinic ${clinicId}`);
+    const response = await API.get(ROUTES.CLINICS.FIELDS(clinicId));
+    console.log('Successfully fetched clinic fields');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching clinic fields:', error);
+    // Return empty array as fallback instead of throwing error
+    return [];
+  }
+};
+
+// Enhanced availability summary that combines all data
+export const getComprehensiveAvailability = async (clinicId: number) => {
+  try {
+    console.log(`Fetching comprehensive availability data for clinic ${clinicId}`);
+    
+    // Fetch all availability data in parallel
+    const [settings, weeklySchedule, breaks, specialDates, fields] = await Promise.all([
+      getAvailabilitySettings(clinicId),
+      getWeeklySchedule(clinicId),
+      getBreakTimes(clinicId),
+      getSpecialDates(clinicId),
+      getClinicFields(clinicId)
+    ]);
+
+    const comprehensiveData = {
+      settings,
+      weeklySchedule,
+      breaks,
+      specialDates,
+      fields,
+      timestamp: new Date().getTime()
+    };
+
+    console.log('Successfully fetched comprehensive availability data');
+    return comprehensiveData;
+  } catch (error) {
+    console.error('Error fetching comprehensive availability:', error);
+    throw error;
+  }
+};
+
 export interface AppointmentBookingData {
   owner_name: string;
   owner_phone: string;
@@ -612,6 +660,20 @@ export interface AppointmentResponse {
   data?: any;
   appointment_id?: number | string;
   error?: string;
+}
+
+// Request a password reset link
+export const forgotPassword = async (email: string): Promise<any> => {
+  try {
+    const response = await API.post('/forgot-password', { email });
+    return response.data;
+  } catch (error: any) {
+    console.error('Error requesting password reset:', error);
+    if (error.response && error.response.data) {
+      return error.response.data;
+    }
+    throw error;
+  }
 }
 
 export const bookAppointment = async (clinicId: number, data: AppointmentBookingData): Promise<AppointmentResponse> => {
@@ -919,6 +981,23 @@ export const bookAppointment = async (clinicId: number, data: AppointmentBooking
       message: error.response?.data?.message || 'Failed to book appointment. Please try again.',
       error: error.message
     };
+  }
+};
+
+/**
+ * Get the current authentication token from AsyncStorage
+ * 
+ * @returns The token if available, null otherwise
+ */
+export const getToken = async (): Promise<string | null> => {
+  try {
+    // Try to get token from all possible storage locations
+    return await AsyncStorage.getItem('token') || 
+           await AsyncStorage.getItem('userToken') || 
+           await AsyncStorage.getItem('accessToken');
+  } catch (error) {
+    console.error('Error retrieving token:', error);
+    return null;
   }
 };
 

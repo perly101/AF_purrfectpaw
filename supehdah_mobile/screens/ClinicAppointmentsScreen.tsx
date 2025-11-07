@@ -115,7 +115,18 @@ export default function ClinicAppointmentsScreen({ route, navigation }: ClinicAp
     // Fetch user data from API
   React.useEffect(() => {
     const fetchUserData = async () => {
+      let token: string | null = null;
       try {
+        // Check if user has a token before attempting to fetch user data
+        token = await AsyncStorage.getItem('token') || 
+                     await AsyncStorage.getItem('userToken') || 
+                     await AsyncStorage.getItem('accessToken');
+        
+        if (!token) {
+          console.log('No auth token available, skipping user data fetch in ClinicAppointments');
+          return;
+        }
+        
         // Get user data from API
         const response = await API.get('/me');
         let userData = response.data;
@@ -168,8 +179,11 @@ export default function ClinicAppointmentsScreen({ route, navigation }: ClinicAp
             console.log('Set owner email from email_address:', userData.email_address);
           }
         }
-      } catch (error) {
-        console.error('Error fetching user data:', error);
+      } catch (error: any) {
+        // Only log actual errors, not missing token cases
+        if (error?.response?.status !== 401 || token) {
+          console.error('Error fetching user data:', error);
+        }
       }
     };
     

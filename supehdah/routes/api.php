@@ -4,15 +4,16 @@ use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\API\ClinicInfoController;
 use App\Http\Controllers\API\UserController;
 use App\Http\Controllers\API\MeController;
-use App\Http\Controllers\Api\ProfileController;
-use App\Http\Controllers\Api\ClinicController;
-use App\Http\Controllers\Api\ClinicGalleryController;
-use App\Http\Controllers\Api\ClinicFieldApiController;
-use App\Http\Controllers\Api\ClinicAppointmentApiController;
-use App\Http\Controllers\Api\ClinicHomepageApiController;   
+use App\Http\Controllers\API\ProfileController;
+use App\Http\Controllers\API\ClinicController;
+use App\Http\Controllers\API\ClinicGalleryController;
+use App\Http\Controllers\API\ClinicFieldApiController;
+use App\Http\Controllers\API\ClinicAppointmentApiController;
+use App\Http\Controllers\API\ClinicHomepageApiController;   
 use App\Http\Controllers\API\AppointmentApiController;
 use App\Http\Controllers\API\ClinicStatusController;
 use App\Http\Controllers\API\AvailabilityApiController;
+use App\Http\Controllers\API\PetApiController;
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
@@ -37,6 +38,9 @@ Route::middleware('auth:sanctum')->group(function () {
     });
     
     Route::get('/user/email-verified', [App\Http\Controllers\API\OtpVerificationController::class, 'checkVerified']);
+    
+    // Debug endpoint for development only
+    Route::get('/debug/otp-status', [App\Http\Controllers\API\OtpDebugController::class, 'checkOtpStatus']);
 });
 
 Route::middleware('auth:sanctum')->group(function () {
@@ -73,15 +77,15 @@ Route::middleware('refresh.appointment')->group(function () {
 
 // Pet API routes
 Route::middleware('auth:sanctum')->group(function () {
-    Route::get('/pets', [App\Http\Controllers\Api\PetApiController::class, 'index']);
-    Route::post('/pets', [App\Http\Controllers\Api\PetApiController::class, 'store']);
-    Route::get('/pets/{id}', [App\Http\Controllers\Api\PetApiController::class, 'show']);
-    Route::put('/pets/{id}', [App\Http\Controllers\Api\PetApiController::class, 'update']);
-    Route::delete('/pets/{id}', [App\Http\Controllers\Api\PetApiController::class, 'destroy']);
+    Route::get('/pets', [App\Http\Controllers\API\PetApiController::class, 'index']);
+    Route::post('/pets', [App\Http\Controllers\API\PetApiController::class, 'store']);
+    Route::get('/pets/{id}', [App\Http\Controllers\API\PetApiController::class, 'show']);
+    Route::put('/pets/{id}', [App\Http\Controllers\API\PetApiController::class, 'update']);
+    Route::delete('/pets/{id}', [App\Http\Controllers\API\PetApiController::class, 'destroy']);
     
     // Pet vaccination routes
-    Route::post('/pets/{id}/vaccinations', [App\Http\Controllers\Api\PetApiController::class, 'storeVaccination']);
-    Route::get('/pets/{id}/vaccinations', [App\Http\Controllers\Api\PetApiController::class, 'getVaccinations']);
+    Route::post('/pets/{id}/vaccinations', [App\Http\Controllers\API\PetApiController::class, 'storeVaccination']);
+    Route::get('/pets/{id}/vaccinations', [App\Http\Controllers\API\PetApiController::class, 'getVaccinations']);
 });
 Route::get('/clinics/{clinicId}/appointments', [AppointmentApiController::class, 'index']);
 Route::get('/clinics/{clinicId}/appointments/{id}', [AppointmentApiController::class, 'show']);

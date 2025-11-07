@@ -39,11 +39,23 @@ const ClinicNotificationsScreen: React.FC = () => {
       setLoading(true);
       setError(null);
       
+      const token = await AsyncStorage.getItem('userToken');
+      if (!token) {
+        console.log('No token found, user not logged in');
+        setNotifications([]);
+        return;
+      }
+      
       const response = await API.get('/clinic/notifications');
       setNotifications(response.data.notifications || []);
-    } catch (err) {
-      console.error('Failed to fetch notifications:', err);
-      setError('Failed to load notifications');
+    } catch (err: any) {
+      // Only show error for actual failures, not auth issues
+      if (err?.response?.status !== 401) {
+        console.error('Failed to fetch notifications:', err);
+        setError('Failed to load notifications');
+      } else {
+        setNotifications([]);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);

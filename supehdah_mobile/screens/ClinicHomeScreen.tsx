@@ -1,13 +1,46 @@
 import React from 'react';
-import { View, Text, StyleSheet, ImageBackground, Image, ScrollView, ActivityIndicator, RefreshControl, FlatList } from 'react-native';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  ImageBackground, 
+  Image, 
+  ScrollView, 
+  ActivityIndicator, 
+  RefreshControl, 
+  FlatList,
+  SafeAreaView,
+  TouchableOpacity,
+  Dimensions
+} from 'react-native';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API } from '../src/api';
 
-const PINK = '#FFC1CC';
-const PURPLE = '#B39DDB';
-const WHITE = '#FFFFFF';
-const DARK = '#333';
-const LIGHT = '#F8F6FF';
+// Modern color palette - consistent with other screens
+const COLORS = {
+  primary: '#6C5CE7',
+  primaryLight: '#A29BFE',
+  secondary: '#FF9EB1',
+  background: '#F8FAFC',
+  surface: '#FFFFFF',
+  surfaceElevated: '#FEFEFE',
+  text: '#1A1D29',
+  textSecondary: '#64748B',
+  textMuted: '#94A3B8',
+  border: '#E2E8F0',
+  borderLight: '#F1F5F9',
+  success: '#10B981',
+  successBg: '#ECFDF5',
+  warning: '#F59E0B',
+  warningBg: '#FFFBEB',
+  error: '#EF4444',
+  errorBg: '#FEF2F2',
+  info: '#3B82F6',
+  infoBg: '#EFF6FF',
+};
+
+const { width } = Dimensions.get('window');
 
 type Homepage = {
   hero_title?: string | null;
@@ -90,143 +123,559 @@ export default function ClinicHomeScreen() {
   const heroUri = toAbsoluteUrl(homepage?.hero_image);
   const annImageUri = toAbsoluteUrl(homepage?.announcement_image);
 
-  const renderService = ({ item }: { item: Service }) => {
+  const getServiceIcon = (serviceName: string) => {
+    const name = serviceName.toLowerCase();
+    if (name.includes('check') || name.includes('exam')) return 'stethoscope';
+    if (name.includes('vaccin')) return 'needle';
+    if (name.includes('dental') || name.includes('teeth')) return 'tooth';
+    if (name.includes('surgery') || name.includes('operation')) return 'medical-bag';
+    if (name.includes('grooming') || name.includes('bath')) return 'content-cut';
+    if (name.includes('emergency')) return 'ambulance';
+    if (name.includes('consultation')) return 'doctor';
+    return 'medical-bag';
+  };
+
+  const renderService = ({ item, index }: { item: Service; index: number }) => {
     const uri = toAbsoluteUrl(item.image_url) || toAbsoluteUrl(item.image_path);
+    const isLastRow = Math.floor(index / 2) === Math.floor((services.length - 1) / 2);
+    
     return (
-      <View style={styles.serviceCard}>
-        {uri ? (
-          <Image source={{ uri }} style={styles.serviceImage} resizeMode="cover" />
-        ) : (
-          <View style={[styles.serviceImage, styles.servicePlaceholder]} />
-        )}
-        <View style={styles.serviceBody}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text style={styles.serviceName} numberOfLines={1}>{item.name}</Text>
-            {item.price != null && (
-              <Text style={styles.servicePrice} numberOfLines={1}>
-                ₱{Number(item.price).toFixed(2)}
-              </Text>
-            )}
-          </View>
-          {!!item.description && (
-            <Text style={styles.serviceDesc} numberOfLines={2}>{item.description}</Text>
+      <TouchableOpacity 
+        style={[styles.serviceCard, { marginBottom: isLastRow ? 0 : 16 }]} 
+        activeOpacity={0.8}
+      >
+        <View style={styles.serviceImageContainer}>
+          {uri ? (
+            <Image source={{ uri }} style={styles.serviceImage} resizeMode="cover" />
+          ) : (
+            <View style={styles.servicePlaceholder}>
+              <MaterialCommunityIcons 
+                name={getServiceIcon(item.name) as any} 
+                size={32} 
+                color={COLORS.primary} 
+              />
+            </View>
           )}
           {item.is_active === false && (
-            <Text style={styles.serviceTag}>Inactive</Text>
+            <View style={styles.inactiveOverlay}>
+              <MaterialCommunityIcons name="pause-circle" size={20} color={COLORS.error} />
+            </View>
           )}
         </View>
-      </View>
+        
+        <View style={styles.serviceContent}>
+          <Text style={styles.serviceName} numberOfLines={1}>{item.name}</Text>
+          {!!item.description && (
+            <Text style={styles.serviceDescription} numberOfLines={2}>{item.description}</Text>
+          )}
+          
+          <View style={styles.serviceMeta}>
+            {item.price != null && (
+              <View style={styles.priceContainer}>
+                <MaterialCommunityIcons name="currency-php" size={14} color={COLORS.success} />
+                <Text style={styles.servicePrice}>
+                  {Number(item.price).toFixed(2)}
+                </Text>
+              </View>
+            )}
+            {item.is_active === false && (
+              <View style={styles.statusBadge}>
+                <Text style={styles.statusText}>Inactive</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </TouchableOpacity>
     );
   };
 
   return (
-    <ScrollView style={styles.bg} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PINK} />}>
-      {/* Hero */}
-      <View style={styles.heroWrap}>
-        {heroUri ? (
-          <ImageBackground source={{ uri: heroUri }} style={styles.hero} imageStyle={{ opacity: 0.85 }}>
-            <View style={styles.heroOverlay}>
-              <Text style={styles.heroTitle}>{homepage?.hero_title || `Welcome to ${clinicName}`}</Text>
-              {!!homepage?.hero_subtitle && (
-                <Text style={styles.heroSubtitle}>{homepage?.hero_subtitle}</Text>
-              )}
-            </View>
-          </ImageBackground>
-        ) : (
-          <View style={[styles.hero, styles.heroFallback]}>
-            <Text style={styles.heroTitle}>{homepage?.hero_title || `Welcome to ${clinicName}`}</Text>
-            {!!homepage?.hero_subtitle && (
-              <Text style={styles.heroSubtitle}>{homepage?.hero_subtitle}</Text>
-            )}
-          </View>
-        )}
-      </View>
-
-      {/* Loading state for first load */}
-      {loading && !homepage && (
-        <View style={styles.loadingWrap}>
-          <ActivityIndicator size="large" color={PINK} />
-          <Text style={styles.loadingText}>Loading clinic...</Text>
-        </View>
-      )}
-
-      {/* Announcement */}
-      {(homepage?.announcement_title || homepage?.announcement_body || annImageUri) && (
-        <View style={styles.card}> 
-          <View style={styles.annRow}>
-            {annImageUri ? (
-              <Image source={{ uri: annImageUri }} style={styles.annImage} resizeMode="cover" />
-            ) : (
-              <View style={[styles.annImage, styles.annPlaceholder]} />
-            )}
-            <View style={{ flex: 1 }}>
-              <Text style={styles.sectionTitle}>{homepage?.announcement_title || 'Announcement'}</Text>
-              <Text style={styles.annBody}>{homepage?.announcement_body || 'No announcements yet.'}</Text>
+    <SafeAreaView style={styles.container}>
+      {/* Enhanced Header */}
+      <View style={styles.header}>
+        <View style={styles.headerContent}>
+          <View style={styles.clinicInfo}>
+            <MaterialCommunityIcons name="hospital-building" size={24} color={COLORS.primary} />
+            <View style={styles.clinicDetails}>
+              <Text style={styles.clinicName}>{clinicName}</Text>
+              <Text style={styles.clinicSubtitle}>Veterinary Clinic</Text>
             </View>
           </View>
+          <TouchableOpacity style={styles.headerAction}>
+            <MaterialCommunityIcons name="bell-outline" size={22} color={COLORS.textMuted} />
+          </TouchableOpacity>
         </View>
-      )}
-
-      {/* About */}
-      <View style={styles.card}> 
-        <Text style={styles.sectionTitle}>About {clinicName}</Text>
-        <Text style={styles.aboutText}>
-          {homepage?.about_text || 'Tell your clients about your clinic, your mission, and what makes you special.'}
-        </Text>
       </View>
 
-      {/* Services */}
-      <View style={[styles.card, { paddingBottom: 6 }]}> 
-        <Text style={styles.sectionTitle}>Services</Text>
-        {services.length === 0 ? (
-          <Text style={{ color: '#666' }}>No services yet.</Text>
-        ) : (
-          <FlatList
-            data={services}
-            keyExtractor={(it) => String(it.id)}
-            numColumns={2}
-            columnWrapperStyle={{ justifyContent: 'space-between' }}
-            contentContainerStyle={{ paddingTop: 8 }}
-            renderItem={renderService}
-            scrollEnabled={false}
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefresh} 
+            tintColor={COLORS.primary}
+            colors={[COLORS.primary]}
           />
-        )}
-      </View>
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Hero Section */}
+        <View style={styles.heroContainer}>
+          {heroUri ? (
+            <ImageBackground source={{ uri: heroUri }} style={styles.heroBackground} imageStyle={styles.heroImageStyle}>
+              <View style={styles.heroOverlay}>
+                <View style={styles.heroContent}>
+                  <Text style={styles.heroTitle}>{homepage?.hero_title || `Welcome to ${clinicName}`}</Text>
+                  {!!homepage?.hero_subtitle && (
+                    <Text style={styles.heroSubtitle}>{homepage?.hero_subtitle}</Text>
+                  )}
+                </View>
+              </View>
+            </ImageBackground>
+          ) : (
+            <View style={styles.heroFallback}>
+              <View style={styles.heroGradient}>
+                <Text style={styles.heroTitle}>{homepage?.hero_title || `Welcome to ${clinicName}`}</Text>
+                {!!homepage?.hero_subtitle && (
+                  <Text style={styles.heroSubtitle}>{homepage?.hero_subtitle}</Text>
+                )}
+              </View>
+            </View>
+          )}
+        </View>
 
-      {/* Footer spacing */}
-      <View style={{ height: 16 }} />
-    </ScrollView>
+        {/* Loading State */}
+        {loading && !homepage && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+            <Text style={styles.loadingText}>Loading clinic information...</Text>
+          </View>
+        )}
+
+        {/* Announcement Card */}
+        {(homepage?.announcement_title || homepage?.announcement_body || annImageUri) && (
+          <View style={styles.announcementCard}>
+            <View style={styles.cardHeader}>
+              <MaterialCommunityIcons name="bullhorn" size={22} color={COLORS.warning} />
+              <Text style={styles.cardTitle}>{homepage?.announcement_title || 'Announcement'}</Text>
+            </View>
+            <View style={styles.announcementContent}>
+              {annImageUri && (
+                <View style={styles.announcementImageContainer}>
+                  <Image source={{ uri: annImageUri }} style={styles.announcementImage} resizeMode="cover" />
+                </View>
+              )}
+              <View style={styles.announcementText}>
+                <Text style={styles.announcementBody}>
+                  {homepage?.announcement_body || 'No announcements at this time.'}
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* About Section */}
+        <View style={styles.infoCard}>
+          <View style={styles.cardHeader}>
+            <MaterialCommunityIcons name="information" size={22} color={COLORS.info} />
+            <Text style={styles.cardTitle}>About {clinicName}</Text>
+          </View>
+          <Text style={styles.aboutText}>
+            {homepage?.about_text || 'Dedicated to providing exceptional veterinary care for your beloved pets. Our experienced team is committed to ensuring the health and happiness of your furry family members.'}
+          </Text>
+        </View>
+
+        {/* Services Section */}
+        <View style={styles.servicesCard}>
+          <View style={styles.cardHeader}>
+            <MaterialCommunityIcons name="medical-bag" size={22} color={COLORS.success} />
+            <Text style={styles.cardTitle}>Our Services</Text>
+            <Text style={styles.serviceCount}>({services.length})</Text>
+          </View>
+          
+          {services.length === 0 ? (
+            <View style={styles.emptyServices}>
+              <MaterialCommunityIcons name="medical-bag" size={48} color={COLORS.textMuted} />
+              <Text style={styles.emptyServicesText}>No services available yet</Text>
+              <Text style={styles.emptyServicesSubtext}>Services will be displayed here once added</Text>
+            </View>
+          ) : (
+            <View style={styles.servicesGrid}>
+              {services.map((item, index) => renderService({ item, index }))}
+            </View>
+          )}
+        </View>
+
+        {/* Bottom Spacing */}
+        <View style={styles.bottomSpacing} />
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  bg: { flex: 1, backgroundColor: LIGHT },
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+
+  // Enhanced Header
+  header: {
+    backgroundColor: COLORS.surface,
+    paddingTop: 16,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderLight,
+    shadowColor: COLORS.text,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  clinicInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  clinicDetails: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  clinicName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.text,
+    letterSpacing: 0.3,
+  },
+  clinicSubtitle: {
+    fontSize: 13,
+    color: COLORS.textMuted,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  headerAction: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.borderLight,
+  },
+
+  // ScrollView
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 32,
+  },
+
+  // Hero Section
+  heroContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    marginBottom: 24,
+  },
+  heroBackground: {
+    height: 200,
+    borderRadius: 24,
+    overflow: 'hidden',
+    justifyContent: 'flex-end',
+  },
+  heroImageStyle: {
+    borderRadius: 24,
+  },
+  heroOverlay: {
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    borderRadius: 24,
+  },
+  heroContent: {
+    padding: 24,
+  },
+  heroFallback: {
+    height: 200,
+    borderRadius: 24,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  heroGradient: {
+    backgroundColor: COLORS.primary,
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+    borderRadius: 24,
+  },
+  heroTitle: {
+    color: COLORS.surface,
+    fontSize: 24,
+    fontWeight: '800',
+    textAlign: 'center',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  heroSubtitle: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 16,
+    fontWeight: '500',
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+
+  // Loading State
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    marginHorizontal: 20,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: COLORS.textSecondary,
+    fontWeight: '500',
+  },
+
+  // Card Styles
+  announcementCard: {
+    backgroundColor: COLORS.surface,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    shadowColor: COLORS.text,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  infoCard: {
+    backgroundColor: COLORS.surface,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    shadowColor: COLORS.text,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  servicesCard: {
+    backgroundColor: COLORS.surface,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    shadowColor: COLORS.text,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+
+  // Card Headers
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginLeft: 12,
+    flex: 1,
+    letterSpacing: 0.3,
+  },
+  serviceCount: {
+    fontSize: 14,
+    color: COLORS.textMuted,
+    fontWeight: '600',
+  },
+
+  // Announcement Content
+  announcementContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  announcementImageContainer: {
+    marginRight: 16,
+  },
+  announcementImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 16,
+    backgroundColor: COLORS.borderLight,
+  },
+  announcementText: {
+    flex: 1,
+  },
+  announcementBody: {
+    fontSize: 15,
+    color: COLORS.textSecondary,
+    lineHeight: 22,
+    fontWeight: '500',
+  },
+
+  // About Text
+  aboutText: {
+    fontSize: 15,
+    color: COLORS.textSecondary,
+    lineHeight: 24,
+    fontWeight: '500',
+  },
+
+  // Services Grid
+  servicesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  serviceCard: {
+    backgroundColor: COLORS.surfaceElevated,
+    borderRadius: 16,
+    width: (width - 80) / 2,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: COLORS.text,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  serviceImageContainer: {
+    position: 'relative',
+  },
+  serviceImage: {
+    width: '100%',
+    height: 100,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
+  servicePlaceholder: {
+    width: '100%',
+    height: 100,
+    backgroundColor: COLORS.primaryLight + '15',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
+  inactiveOverlay: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: COLORS.errorBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.error,
+  },
+  serviceContent: {
+    padding: 16,
+  },
+  serviceName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: 8,
+    letterSpacing: 0.2,
+  },
+  serviceDescription: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    lineHeight: 18,
+    marginBottom: 12,
+    fontWeight: '500',
+  },
+  serviceMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  priceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.successBg,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  servicePrice: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.success,
+    marginLeft: 2,
+  },
+  statusBadge: {
+    backgroundColor: COLORS.errorBg,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.error,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+
+  // Empty Services State
+  emptyServices: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyServicesText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyServicesSubtext: {
+    fontSize: 14,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+
+  // Bottom Spacing
+  bottomSpacing: {
+    height: 32,
+  },
+
+  // Legacy styles for compatibility
+  bg: { flex: 1, backgroundColor: COLORS.background },
   loadingWrap: { alignItems: 'center', justifyContent: 'center', paddingVertical: 20 },
-  loadingText: { marginTop: 8, color: DARK },
-
-  heroWrap: { paddingHorizontal: 16, paddingTop: 16 , marginTop: 40},
+  card: { backgroundColor: COLORS.surface, marginHorizontal: 16, marginTop: 12, borderRadius: 16, padding: 14, shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.07, shadowRadius: 12, elevation: 3 },
+  sectionTitle: { color: COLORS.primary, fontWeight: 'bold', fontSize: 16, marginBottom: 6 },
   hero: { height: 180, borderRadius: 18, overflow: 'hidden', justifyContent: 'flex-end' },
-  heroOverlay: { backgroundColor: 'rgba(0,0,0,0.35)', padding: 16 },
-  heroFallback: { backgroundColor: PURPLE, padding: 16, justifyContent: 'flex-end' },
-  heroTitle: { color: WHITE, fontSize: 22, fontWeight: 'bold' },
-  heroSubtitle: { color: 'rgba(255,255,255,0.95)', marginTop: 4 },
-
-  card: { backgroundColor: WHITE, marginHorizontal: 16, marginTop: 12, borderRadius: 16, padding: 14, shadowColor: '#B39DDB', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.07, shadowRadius: 12, elevation: 3 },
-  sectionTitle: { color: PURPLE, fontWeight: 'bold', fontSize: 16, marginBottom: 6 },
-
+  heroWrap: { paddingHorizontal: 16, paddingTop: 16, marginTop: 40 },
   annRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   annImage: { width: 76, height: 76, borderRadius: 12, backgroundColor: '#f2f2f2', marginRight: 10 },
   annPlaceholder: { backgroundColor: '#f6e7f0' },
-  annBody: { color: DARK, marginTop: 2 },
-
-  aboutText: { color: DARK, lineHeight: 20 },
-
-  serviceCard: { backgroundColor: WHITE, borderRadius: 14, overflow: 'hidden', marginBottom: 12, width: '48%', elevation: 2 },
-  serviceImage: { width: '100%', height: 90, backgroundColor: '#f2f2f2' },
-  servicePlaceholder: { backgroundColor: '#f6f6f6' },
+  annBody: { color: COLORS.text, marginTop: 2 },
   serviceBody: { padding: 10 },
-  serviceName: { color: DARK, fontWeight: 'bold', flex: 1, marginRight: 6 },
-  servicePrice: { color: '#666', fontSize: 12 },
   serviceDesc: { color: '#666', fontSize: 12, marginTop: 4 },
   serviceTag: { marginTop: 6, alignSelf: 'flex-start', backgroundColor: '#f1f1f1', color: '#666', fontSize: 10, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 },
 }); 

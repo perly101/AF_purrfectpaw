@@ -1,7 +1,7 @@
 // src/contexts/AuthContext.tsx
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API } from '../api';
+import { API, resetAuthFailureState } from '../api';
 
 interface User {
   id: number;
@@ -83,6 +83,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signIn = async (newToken: string, userData: User) => {
     try {
+      // Reset any pending auth failures
+      resetAuthFailureState();
+      
       // Save auth data to storage
       await AsyncStorage.setItem('token', newToken);
       await AsyncStorage.setItem('userToken', newToken); // For backward compatibility
@@ -100,6 +103,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     try {
+      // Reset any pending auth failures
+      resetAuthFailureState();
+      
       // Remove auth data from storage
       await AsyncStorage.removeItem('token');
       await AsyncStorage.removeItem('userToken');

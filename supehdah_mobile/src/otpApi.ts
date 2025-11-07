@@ -16,12 +16,20 @@ export const OtpApi = {
       const token = await AsyncStorage.getItem('token') || 
                    await AsyncStorage.getItem('userToken') || 
                    await AsyncStorage.getItem('accessToken');
+      
+      console.log('🔐 OtpApi verifyOtp - Token check:', {
+        hasToken: !!token,
+        tokenLength: token?.length || 0,
+        tokenPreview: token ? `${token.substring(0, 10)}...` : 'none'
+      });
                    
       if (!token) {
         throw new Error('No authentication token available');
       }
       
+      console.log('📤 Sending OTP verification request:', { otp });
       const response = await API.post('/verify-otp', { otp });
+      console.log('📥 OTP verification response:', response.data);
       return response.data;
     } catch (error: any) {
       // Add more context to the error for better debugging

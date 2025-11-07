@@ -155,14 +155,25 @@ class AppointmentApiController extends Controller
                 }
                 
                 // Create the appointment with properly formatted date/time
-                $appointment = Appointment::create([
+                $appointmentData = [
                     'clinic_id' => $clinic->id,
                     'owner_name' => $request->owner_name,
                     'owner_phone' => $request->owner_phone,
                     'appointment_date' => $appointmentDate,
                     'appointment_time' => $appointmentTime,
                     'status' => 'pending', // Default status
-                ]);
+                ];
+                
+                // If user is authenticated, link the appointment to them
+                if ($request->user()) {
+                    $appointmentData['user_id'] = $request->user()->id;
+                    \Illuminate\Support\Facades\Log::info('Linking appointment to authenticated user', [
+                        'user_id' => $request->user()->id,
+                        'user_email' => $request->user()->email
+                    ]);
+                }
+                
+                $appointment = Appointment::create($appointmentData);
                 
                 // Process field responses
                 foreach ($request->responses as $response) {

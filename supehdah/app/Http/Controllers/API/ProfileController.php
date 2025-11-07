@@ -111,29 +111,29 @@ class ProfileController extends Controller
     {
         $user = $request->user();
 
-        $phone = $user->phone_number ?? null;
-        $fullName = trim(($user->first_name ?? '') . ' ' . ($user->middle_name ?? '') . ' ' . ($user->last_name ?? ''));
+        \Log::info("📋 Fetching appointments for user", [
+            'user_id' => $user->id,
+            'user_email' => $user->email,
+            'user_name' => trim(($user->first_name ?? '') . ' ' . ($user->middle_name ?? '') . ' ' . ($user->last_name ?? '')),
+            'user_phone' => $user->phone_number
+        ]);
 
-    $query = Appointment::with(['clinic', 'doctor']);
-
-        // Build matching conditions: prefer phone match if available, otherwise match by name
-        $query->where(function ($q) use ($phone, $fullName) {
-            if (!empty($phone)) {
-                $q->where('owner_phone', $phone);
-            }
-
-            if (!empty($fullName)) {
-                // also include partial name matches to be more forgiving
-                $q->orWhere('owner_name', 'like', "%{$fullName}%");
-            }
-        });
-
-        $appointments = $query->orderBy('appointment_date', 'desc')
+        // STRICT SECURITY: ONLY get appointments directly linked to this user_id
+        // NO FALLBACK MATCHING to prevent cross-user data leakage when users share phone numbers
+        $appointments = Appointment::with(['clinic', 'doctor'])
+            ->where('user_id', $user->id)
+            ->orderBy('appointment_date', 'desc')
             ->orderBy('appointment_time', 'desc')
             ->get();
+            
+        \Log::info("🎯 STRICT MODE: Found {$appointments->count()} appointments with user_id={$user->id}");
+
+        // Since we're ONLY getting appointments by user_id, no additional filtering needed
+        // All appointments returned are guaranteed to belong to this user
+        $filteredAppointments = $appointments;
 
         // Normalize output so mobile app receives expected fields
-        $data = $appointments->map(function ($apt) {
+        $data = $filteredAppointments->map(function ($apt) {
             // If the appointment is completed or cancelled, use updated_at as the completion/cancellation time
             $completedAt = null;
             if (in_array($apt->status, ['completed', 'cancelled'])) {
@@ -159,6 +159,11 @@ class ProfileController extends Controller
             ];
         });
 
+        \Log::info("✅ Returning {$data->count()} appointments for user {$user->id}", [
+            'appointment_ids' => $data->pluck('id')->toArray(),
+            'appointment_owners' => $data->pluck('owner_name')->toArray()
+        ]);
+
         return response()->json(['appointments' => $data]);
     }
 
@@ -178,18 +183,52 @@ class ProfileController extends Controller
 
         $appointment = Appointment::with(['clinic', 'doctor', 'customValues.field'])->findOrFail($id);
 
-        // Ensure appointment belongs to this user by phone or name match
-        $belongs = false;
-        if ($phone && $appointment->owner_phone === $phone) $belongs = true;
-        if (!$belongs && $fullName && stripos($appointment->owner_name, $fullName) !== false) $belongs = true;
-
-        if (!$belongs) {
+        // STRICT SECURITY CHECK: Only allow access if user_id matches exactly
+        // NO FALLBACK to prevent cross-user data access when phone numbers are shared
+        if (!$appointment->user_id || $appointment->user_id != $user->id) {
+            \Log::warning("Unauthorized appointment access attempt", [
+                'user_id' => $user->id,
+                'appointment_id' => $id,
+                'appointment_user_id' => $appointment->user_id,
+                'appointment_phone' => $appointment->owner_phone,
+                'appointment_name' => $appointment->owner_name
+            ]);
             return response()->json(['message' => 'Not found'], 404);
         }
 
         $completedAt = null;
         if (in_array($appointment->status, ['completed', 'cancelled'])) {
             $completedAt = $appointment->updated_at ? $appointment->updated_at->format('Y-m-d H:i:s') : null;
+        }
+
+        // Parse consultation notes if they exist
+        $consultationNotes = null;
+        if ($appointment->consultation_notes) {
+            // If consultation_notes is JSON, extract readable content
+            $notesData = json_decode($appointment->consultation_notes, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($notesData)) {
+                // Combine all consultation note fields into a readable format
+                $notesParts = [];
+                if (!empty($notesData['chief_complaint'])) {
+                    $notesParts[] = "Chief Complaint: " . $notesData['chief_complaint'];
+                }
+                if (!empty($notesData['history_observations'])) {
+                    $notesParts[] = "History & Observations: " . $notesData['history_observations'];
+                }
+                if (!empty($notesData['examination_findings'])) {
+                    $notesParts[] = "Examination Findings: " . $notesData['examination_findings'];
+                }
+                if (!empty($notesData['diagnosis'])) {
+                    $notesParts[] = "Diagnosis: " . $notesData['diagnosis'];
+                }
+                if (!empty($notesData['plan_recommendations'])) {
+                    $notesParts[] = "Treatment Plan & Recommendations: " . $notesData['plan_recommendations'];
+                }
+                $consultationNotes = implode("\n\n", $notesParts);
+            } else {
+                // If it's not JSON, use as plain text
+                $consultationNotes = $appointment->consultation_notes;
+            }
         }
 
         $data = [
@@ -201,6 +240,7 @@ class ProfileController extends Controller
             'appointment_date' => $appointment->appointment_date ? $appointment->appointment_date->format('Y-m-d') : null,
             'appointment_time' => $appointment->appointment_time,
             'status' => $appointment->status,
+            'consultation_notes' => $consultationNotes,
             'doctor' => $appointment->doctor ? [
                 'id' => $appointment->doctor->id,
                 'name' => ($appointment->doctor->first_name ?? '') . ' ' . ($appointment->doctor->last_name ?? ''),
