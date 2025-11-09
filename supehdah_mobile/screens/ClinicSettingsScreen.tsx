@@ -124,12 +124,14 @@ export default function ClinicSettingsScreen() {
     <View style={styles.container}>
       <StatusBar backgroundColor={LIGHT} barStyle="dark-content" />
       
-      {/* Header with Clinic Info */}
-      <LinearGradient
-        colors={[WHITE, LIGHT]}
-        style={styles.headerContainer}
-      >
-        <Text style={styles.title}>Clinic Settings</Text>
+      {/* Uniform Header */}
+      <View style={styles.headerContainer}>
+        <View style={styles.headerContent}>
+          <MaterialIcons name="settings" size={20} color="#4F46E5" />
+          <View style={styles.headerTextWrap}>
+            <Text style={styles.title}>Clinic Settings</Text>
+          </View>
+        </View>
         {clinic ? (
           <View style={styles.clinicInfo}>
             <View style={styles.clinicImageContainer}>
@@ -181,7 +183,7 @@ export default function ClinicSettingsScreen() {
         ) : (
           <Text style={styles.text}>No clinic information available</Text>
         )}
-      </LinearGradient>
+      </View>
 
       {/* Exit Button */}
       <View style={styles.footerContainer}>
@@ -204,22 +206,27 @@ const styles = StyleSheet.create({
     backgroundColor: LIGHT 
   },
   headerContainer: {
+    backgroundColor: '#FFFFFF',
     paddingTop: 50,
-    paddingBottom: 20,
+    paddingBottom: 24,
     paddingHorizontal: 20,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
-    shadowColor: DARK,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  headerTextWrap: {
+    marginLeft: 8,
+    flex: 1,
   },
   title: { 
-    fontSize: 26, 
-    fontWeight: 'bold', 
-    color: DARK,
-    marginBottom: 15
+    fontSize: 18, 
+    fontWeight: '500', 
+    color: '#111827',
+    letterSpacing: -0.2
   },
   text: { 
     fontSize: 15, 

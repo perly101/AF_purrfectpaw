@@ -195,14 +195,14 @@ export default function ClinicHomeScreen() {
       <View style={styles.header}>
         <View style={styles.headerContent}>
           <View style={styles.clinicInfo}>
-            <MaterialCommunityIcons name="hospital-building" size={24} color={COLORS.primary} />
+            <MaterialCommunityIcons name="hospital-building" size={20} color="#4F46E5" />
             <View style={styles.clinicDetails}>
               <Text style={styles.clinicName}>{clinicName}</Text>
               <Text style={styles.clinicSubtitle}>Veterinary Clinic</Text>
             </View>
           </View>
           <TouchableOpacity style={styles.headerAction}>
-            <MaterialCommunityIcons name="bell-outline" size={22} color={COLORS.textMuted} />
+            <MaterialCommunityIcons name="bell-outline" size={20} color="#6B7280" />
           </TouchableOpacity>
         </View>
       </View>
@@ -320,19 +320,14 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
 
-  // Enhanced Header
+  // Minimalist Header
   header: {
-    backgroundColor: COLORS.surface,
-    paddingTop: 16,
+    backgroundColor: '#FFFFFF',
+    paddingTop: 50,
+    paddingBottom: 24,
     paddingHorizontal: 20,
-    paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.borderLight,
-    shadowColor: COLORS.text,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 3,
+    borderBottomColor: '#E5E7EB',
   },
   headerContent: {
     flexDirection: 'row',
@@ -345,28 +340,28 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   clinicDetails: {
-    marginLeft: 12,
+    marginLeft: 8,
     flex: 1,
   },
   clinicName: {
     fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.text,
-    letterSpacing: 0.3,
+    fontWeight: '500',
+    color: '#111827',
+    letterSpacing: -0.2,
   },
   clinicSubtitle: {
-    fontSize: 13,
-    color: COLORS.textMuted,
-    fontWeight: '500',
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '400',
     marginTop: 2,
   },
   headerAction: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.borderLight,
+    backgroundColor: '#F9FAFB',
   },
 
   // ScrollView

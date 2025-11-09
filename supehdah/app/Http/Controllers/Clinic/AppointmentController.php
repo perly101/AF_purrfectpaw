@@ -25,14 +25,26 @@ class AppointmentController extends Controller
     {
         $clinic = ClinicInfo::where('user_id', Auth::id())->firstOrFail();
         $appointments = Appointment::where('clinic_id', $clinic->id)
-            ->whereNotIn('status', ['completed', 'cancelled']) // Exclude completed and cancelled
+            ->where(function($query) {
+                // Include all non-completed appointments
+                $query->whereNotIn('status', ['completed', 'cancelled'])
+                      // OR include completed appointments that are unpaid
+                      ->orWhere(function($subQuery) {
+                          $subQuery->where('status', 'completed')
+                                   ->where(function($paymentQuery) {
+                                       $paymentQuery->whereNull('payment_status')
+                                                   ->orWhere('payment_status', 'unpaid');
+                                   });
+                      });
+            })
             ->with('doctor') // Eager load doctor relationship
             ->orderByRaw("CASE 
                 WHEN status = 'pending' THEN 1
                 WHEN status = 'assigned' THEN 2
                 WHEN status = 'confirmed' THEN 3
-                WHEN status = 'closed' THEN 4
-                ELSE 5 END")
+                WHEN status = 'completed' AND (payment_status IS NULL OR payment_status = 'unpaid') THEN 4
+                WHEN status = 'closed' THEN 5
+                ELSE 6 END")
             ->orderBy('appointment_date', 'desc')
             ->orderBy('appointment_time', 'desc')
             ->paginate(15);
@@ -50,11 +62,19 @@ class AppointmentController extends Controller
         try {
             $clinic = ClinicInfo::where('user_id', Auth::id())->firstOrFail();
             
-            // Get all distinct patient names that have completed/cancelled appointments
+            // Get all distinct patient names that have paid completed appointments or cancelled appointments
             $patients = DB::table('appointments')
                 ->select('owner_name', 'owner_phone', DB::raw('COUNT(*) as appointments_count'))
                 ->where('clinic_id', $clinic->id)
-                ->whereIn('status', ['completed', 'cancelled'])
+                ->where(function($query) {
+                    // Include cancelled appointments
+                    $query->where('status', 'cancelled')
+                          // OR include completed appointments that are paid
+                          ->orWhere(function($subQuery) {
+                              $subQuery->where('status', 'completed')
+                                       ->where('payment_status', 'paid');
+                          });
+                })
                 ->groupBy('owner_name', 'owner_phone')
                 ->orderBy('owner_name')
                 ->get();

@@ -6,11 +6,16 @@ import { API } from '../src/api';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { format } from 'date-fns';
 
-const PINK = '#FFC1CC';
-const PURPLE = '#B39DDB';
+// Minimalist & Elegant Color Palette
+const PURPLE = '#4F46E5';
 const WHITE = '#FFFFFF';
-const DARK = '#333';
-const LIGHT = '#F8F6FF';
+const DARK = '#111827';
+const LIGHT = '#FAFAFA';
+const GRAY = '#6B7280';
+const GRAY_LIGHT = '#F8FAFC';
+const GRAY_BORDER = '#E5E7EB';
+const SUCCESS = '#059669';
+const ERROR = '#DC2626';
 
 // Backend shape
 type ClinicField = {
@@ -600,12 +605,28 @@ export default function ClinicAppointmentsScreen({ route, navigation }: ClinicAp
   };
 
   return (
-    <ScrollView 
-      ref={scrollViewRef}
-      style={styles.bg} 
-      contentContainerStyle={styles.content} 
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PINK} />}>
-      <Text style={styles.header}>Book Appointment</Text>
+    <View style={styles.container}>
+      {/* Uniform Header */}
+      <View style={styles.header}>
+        <View style={styles.headerContent}>
+          <TouchableOpacity 
+            style={styles.backButton} 
+            onPress={() => navigation?.goBack?.()}
+          >
+            <Ionicons name="arrow-back" size={20} color="#6B7280" />
+          </TouchableOpacity>
+          <View style={styles.headerTextWrap}>
+            <Text style={styles.headerTitle}>Book Appointment</Text>
+            <Text style={styles.headerSubtitle}>Schedule your visit</Text>
+          </View>
+        </View>
+      </View>
+
+      <ScrollView 
+        ref={scrollViewRef}
+        style={styles.scrollContainer} 
+        contentContainerStyle={styles.content} 
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PURPLE} />}>
 
       {/* Calendar selection info */}
       {(calendarDate || calendarTimeSlot) && (
@@ -672,7 +693,7 @@ export default function ClinicAppointmentsScreen({ route, navigation }: ClinicAp
         </View>
         {loading ? (
           <View style={{ paddingVertical: 16 }}>
-            <ActivityIndicator color={PINK} />
+            <ActivityIndicator color={PURPLE} />
           </View>
         ) : (
           <View>
@@ -718,7 +739,7 @@ export default function ClinicAppointmentsScreen({ route, navigation }: ClinicAp
                     }}
                   >
                     <Text style={[styles.optionText, selected && styles.optionTextSelected]}>{item}</Text>
-                    {selected && <Ionicons name="checkmark" size={18} color={PINK} />}
+                    {selected && <Ionicons name="checkmark" size={20} color={PURPLE} />}
                   </TouchableOpacity>
                 );
               }}
@@ -780,51 +801,273 @@ export default function ClinicAppointmentsScreen({ route, navigation }: ClinicAp
           )}
         </>
       )}
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  bg: { flex: 1, backgroundColor: LIGHT },
-  content: { padding: 22, paddingBottom: 40 },
-  header: { fontSize: 24, fontWeight: 'bold', color: DARK, marginTop: 10, marginBottom: 16, textAlign: 'center' },
+  container: { flex: 1, backgroundColor: WHITE },
+  // Uniform Header Styles
+  header: { 
+    backgroundColor: WHITE,
+    paddingTop: 50,
+    paddingBottom: 24,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: GRAY_BORDER,
+    flexDirection: 'row', 
+    alignItems: 'center'
+  },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  backButton: { 
+    marginRight: 12, 
+    width: 36,
+    height: 36,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: GRAY_LIGHT
+  },
+  headerTextWrap: { flex: 1 },
+  headerTitle: { 
+    color: DARK, 
+    fontSize: 18, 
+    fontWeight: '500',
+    letterSpacing: -0.2
+  },
+  headerSubtitle: { 
+    color: GRAY, 
+    fontSize: 12, 
+    marginTop: 2,
+    fontWeight: '400'
+  },
+  scrollContainer: { flex: 1 },
+  content: { paddingHorizontal: 24, paddingBottom: 80, paddingTop: 8 },
 
-  banner: { padding: 12, borderRadius: 10, marginBottom: 12 },
-  bannerError: { backgroundColor: '#fdecea', borderColor: '#f5c2c0', borderWidth: 1 },
-  bannerSuccess: { backgroundColor: '#e7f6ed', borderColor: '#b7e1c7', borderWidth: 1 },
-  bannerCalendar: { backgroundColor: '#f1ebff', borderColor: PURPLE, borderWidth: 1, padding: 16 },
-  bannerText: { color: DARK, textAlign: 'center', fontSize: 14 },
+  banner: { 
+    paddingVertical: 12, 
+    paddingHorizontal: 16, 
+    borderRadius: 6, 
+    marginBottom: 24,
+    borderWidth: 1
+  },
+  bannerError: { 
+    backgroundColor: WHITE, 
+    borderColor: ERROR
+  },
+  bannerSuccess: { 
+    backgroundColor: WHITE, 
+    borderColor: SUCCESS
+  },
+  bannerCalendar: { 
+    backgroundColor: WHITE, 
+    borderColor: PURPLE
+  },
+  bannerText: { 
+    color: DARK, 
+    textAlign: 'center', 
+    fontSize: 15,
+    fontWeight: '500',
+    lineHeight: 22
+  },
   calendarBannerContent: { flexDirection: 'row', alignItems: 'flex-start' },
-  calendarBannerDetails: { marginLeft: 12, flex: 1 },
-  calendarBannerTitle: { fontWeight: 'bold', fontSize: 16, color: DARK, marginBottom: 4 },
-  calendarBannerText: { color: DARK, fontSize: 14, marginBottom: 2 },
-  calendarBannerNote: { color: '#666', fontSize: 12, fontStyle: 'italic', marginTop: 4 },
-  changeDateButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 10, padding: 8, backgroundColor: '#f5f0ff', borderRadius: 8, borderWidth: 1, borderColor: PURPLE },
-  changeDateButtonText: { color: PURPLE, marginRight: 8, fontSize: 13, fontWeight: '500' },
+  calendarBannerDetails: { marginLeft: 16, flex: 1 },
+  calendarBannerTitle: { 
+    fontWeight: '700', 
+    fontSize: 18, 
+    color: DARK, 
+    marginBottom: 8,
+    letterSpacing: 0.3
+  },
+  calendarBannerText: { 
+    color: DARK, 
+    fontSize: 15, 
+    marginBottom: 4,
+    fontWeight: '500'
+  },
+  calendarBannerNote: { 
+    color: GRAY, 
+    fontSize: 13, 
+    fontStyle: 'italic', 
+    marginTop: 8,
+    lineHeight: 18
+  },
+  changeDateButton: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    marginTop: 12, 
+    paddingVertical: 10,
+    paddingHorizontal: 16, 
+    backgroundColor: WHITE, 
+    borderRadius: 12, 
+    borderWidth: 2, 
+    borderColor: PURPLE,
+    shadowColor: PURPLE,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2
+  },
+  changeDateButtonText: { 
+    color: PURPLE, 
+    marginRight: 8, 
+    fontSize: 14, 
+    fontWeight: '600',
+    letterSpacing: 0.3
+  },
 
-  card: { backgroundColor: WHITE, borderRadius: 18, padding: 18, marginBottom: 15, shadowColor: '#B39DDB', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.07, shadowRadius: 12, elevation: 3 },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  cardTitle: { fontSize: 17, fontWeight: 'bold', color: PURPLE, marginLeft: 10 },
+  card: { 
+    backgroundColor: WHITE, 
+    borderRadius: 8, 
+    paddingVertical: 32, 
+    paddingHorizontal: 24, 
+    marginBottom: 24, 
+    borderWidth: 1,
+    borderColor: GRAY_BORDER
+  },
+  cardHeader: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    marginBottom: 24,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: GRAY_BORDER
+  },
+  cardTitle: { 
+    fontSize: 18, 
+    fontWeight: '500', 
+    color: DARK, 
+    marginLeft: 8,
+    letterSpacing: -0.2
+  },
 
-  inputGroup: { marginBottom: 12 },
-  label: { fontSize: 14, color: DARK, marginBottom: 6 },
-  input: { backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#eee', paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
-  textarea: { minHeight: 100, textAlignVertical: 'top' },
+  inputGroup: { marginBottom: 24 },
+  label: { 
+    fontSize: 14, 
+    color: GRAY, 
+    marginBottom: 8, 
+    fontWeight: '500',
+    letterSpacing: 0.1
+  },
+  input: { 
+    backgroundColor: WHITE, 
+    borderRadius: 6, 
+    borderWidth: 1, 
+    borderColor: GRAY_BORDER, 
+    paddingHorizontal: 16, 
+    paddingVertical: 14, 
+    fontSize: 16,
+    color: DARK,
+    fontWeight: '400'
+  },
+  textarea: { 
+    minHeight: 100, 
+    textAlignVertical: 'top',
+    paddingTop: 14
+  },
 
-  selector: { backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#eee', paddingHorizontal: 14, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  selectorText: { fontSize: 15, color: DARK },
+  selector: { 
+    backgroundColor: WHITE, 
+    borderRadius: 6, 
+    borderWidth: 1, 
+    borderColor: GRAY_BORDER, 
+    paddingHorizontal: 16, 
+    paddingVertical: 14, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between'
+  },
+  selectorText: { 
+    fontSize: 16, 
+    color: DARK,
+    fontWeight: '400'
+  },
 
-  submitButton: { backgroundColor: PINK, paddingVertical: 14, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
-  submitText: { color: DARK, fontSize: 16, fontWeight: 'bold' },
+  submitButton: { 
+    backgroundColor: PURPLE, 
+    paddingVertical: 16, 
+    borderRadius: 6, 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    marginTop: 32
+  },
+  submitText: { 
+    color: WHITE, 
+    fontSize: 16, 
+    fontWeight: '500',
+    letterSpacing: 0.2
+  },
 
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', alignItems: 'center', padding: 16 },
-  modalCard: { backgroundColor: WHITE, width: '92%', maxHeight: '70%', borderRadius: 14, padding: 14 },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  modalTitle: { fontSize: 16, fontWeight: 'bold', color: DARK },
-  optionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f2f2f2' },
-  optionRowSelected: { backgroundColor: '#faf6ff' },
-  optionText: { fontSize: 15, color: DARK },
-  optionTextSelected: { color: PURPLE, fontWeight: 'bold' },
-  modalSave: { backgroundColor: PINK, paddingVertical: 12, alignItems: 'center', borderRadius: 10, marginTop: 10 },
-  modalSaveText: { color: DARK, fontWeight: 'bold' },
+  modalOverlay: { 
+    flex: 1, 
+    backgroundColor: 'rgba(0,0,0,0.4)', 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    padding: 24 
+  },
+  modalCard: { 
+    backgroundColor: WHITE, 
+    width: '90%', 
+    maxHeight: '70%', 
+    borderRadius: 8, 
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+    borderWidth: 1,
+    borderColor: GRAY_BORDER
+  },
+  modalHeader: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between', 
+    marginBottom: 24,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: GRAY_BORDER
+  },
+  modalTitle: { 
+    fontSize: 18, 
+    fontWeight: '500', 
+    color: DARK,
+    letterSpacing: -0.1
+  },
+  optionRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between', 
+    paddingVertical: 12, 
+    paddingHorizontal: 0,
+    borderBottomWidth: 1, 
+    borderBottomColor: GRAY_BORDER
+  },
+  optionRowSelected: { 
+    backgroundColor: GRAY_LIGHT
+  },
+  optionText: { 
+    fontSize: 16, 
+    color: DARK,
+    fontWeight: '400'
+  },
+  optionTextSelected: { 
+    color: PURPLE, 
+    fontWeight: '500' 
+  },
+  modalSave: { 
+    backgroundColor: PURPLE, 
+    paddingVertical: 14, 
+    alignItems: 'center', 
+    borderRadius: 6, 
+    marginTop: 24
+  },
+  modalSaveText: { 
+    color: WHITE, 
+    fontWeight: '500',
+    fontSize: 16,
+    letterSpacing: 0.1
+  },
 });

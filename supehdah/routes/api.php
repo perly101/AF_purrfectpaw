@@ -26,6 +26,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // User profile appointments (for mobile app) - returns appointments belonging to authenticated user
     Route::get('/profile/appointments', [\App\Http\Controllers\API\ProfileController::class, 'appointments']);
     Route::get('/profile/appointments/{id}', [\App\Http\Controllers\API\ProfileController::class, 'appointmentDetails']);
+    Route::get('/profile/appointments/{id}/receipt', [\App\Http\Controllers\API\ProfileController::class, 'appointmentReceipt']);
     
     // User statistics for dashboard
     Route::get('/user/stats', [\App\Http\Controllers\API\ProfileController::class, 'stats']);

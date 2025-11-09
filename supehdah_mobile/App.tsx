@@ -41,6 +41,7 @@ export type RootStackParamList = {
   };
   Records: undefined;
   AppointmentDetails: { id: number | string };
+  AppointmentReceipt: { appointmentId: number | string };
   // ConnectionTest removed from main flow
 };
 
@@ -132,6 +133,8 @@ const AppNavigator: React.FC<{ navigationRef: React.MutableRefObject<any> }> = (
             <Stack.Screen name="Records" component={require('./screens/RecordsScreen').default} />
             {/* Appointment details for user's appointments */}
             <Stack.Screen name="AppointmentDetails" component={require('./screens/AppointmentDetails').default} />
+            {/* Appointment receipt for user's appointments */}
+            <Stack.Screen name="AppointmentReceipt" component={require('./screens/AppointmentReceipt').default} />
             <Stack.Screen name="EditProfile" component={EditProfileScreen} />
             <Stack.Screen name="ClinicTabs" component={ClinicTabs} />
             <Stack.Screen name="BookAppointment" component={BookAppointmentScreen} />

@@ -337,33 +337,63 @@ const ClinicCalendarScreen = ({ route, navigation }: ClinicCalendarScreenProps) 
       const nowManila = getManilaNow();
 
       const processedSlots = updatedSlots.map((slot) => {
-        // Create a slot time using dateParam + slot.start (assume slot.start is HH:MM or HH:MM:SS)
         let state: SlotState = 'available';
 
         try {
-          const slotDateTime = new Date(`${dateParam}T${slot.start}`);
-          // If slot.start doesn't include seconds/ timezone it's treated as local; compare using Manila now
-          if (isNaN(slotDateTime.getTime())) {
-            // fallback: try parsing by replacing space
-            const parsed = new Date(`${dateParam} ${slot.start}`);
-            if (!isNaN(parsed.getTime())) {
-              if ((parsed.getTime() + 0) <= nowManila.getTime()) state = 'past';
+          // Parse slot time more reliably
+          let slotDateTime: Date;
+          
+          // Try different parsing methods for slot.start (HH:MM or HH:MM:SS format)
+          if (slot.start.includes(':')) {
+            // Create date string in Manila timezone
+            const timeStr = slot.start.length === 5 ? `${slot.start}:00` : slot.start; // Add seconds if missing
+            slotDateTime = new Date(`${dateParam}T${timeStr}+08:00`); // Explicitly set Manila timezone
+            
+            // Fallback: if parsing fails, try local time interpretation
+            if (isNaN(slotDateTime.getTime())) {
+              slotDateTime = new Date(`${dateParam} ${slot.start}`);
+              if (!isNaN(slotDateTime.getTime())) {
+                // Convert local time to Manila time for comparison
+                const utc = slotDateTime.getTime() + slotDateTime.getTimezoneOffset() * 60000;
+                slotDateTime = new Date(utc + PH_TIMEZONE_OFFSET);
+              }
             }
           } else {
-            // Convert slotDateTime (interpreted as local) to milliseconds and compare to Manila now via UTC method
-            const slotUtc = slotDateTime.getTime() - (new Date().getTimezoneOffset() * 60000);
-            const slotManila = new Date(slotUtc + PH_TIMEZONE_OFFSET);
-            const slotEnd = new Date(slotManila.getTime() + ((slot.duration || 30) * 60000));
+            // If no colon, assume invalid format
+            throw new Error('Invalid time format');
+          }
 
-            if (slotEnd.getTime() <= nowManila.getTime()) state = 'past';
+          // Check if slot time has passed
+          if (!isNaN(slotDateTime.getTime())) {
+            // Add buffer for slot duration (default 30 minutes)
+            const slotEndTime = new Date(slotDateTime.getTime() + ((slot.duration || 30) * 60000));
+            
+            // Compare slot end time with current Manila time
+            if (slotEndTime.getTime() <= nowManila.getTime()) {
+              state = 'past';
+            }
+            
+            console.log('TIME CHECK:', {
+              slotStart: slot.start,
+              slotDateTime: slotDateTime.toISOString(),
+              slotEndTime: slotEndTime.toISOString(),
+              nowManila: nowManila.toISOString(),
+              isPast: state === 'past',
+              timeDiff: slotEndTime.getTime() - nowManila.getTime()
+            });
           }
         } catch (e) {
-          // ignore parsing issues and continue
+          console.warn('Time parsing failed for slot:', slot.start, e);
+          // If parsing fails, assume it's available to avoid blocking valid slots
         }
 
+        // Apply other state logic only if not past
         if (state !== 'past') {
-          if (slot.isBooked || slot.status === 'booked') state = 'booked';
-          else if ((slot as any).availability === false || (slot as any).available === false) state = 'closed';
+          if (slot.isBooked || slot.status === 'booked') {
+            state = 'booked';
+          } else if ((slot as any).availability === false || (slot as any).available === false) {
+            state = 'closed';
+          }
         }
 
         return {
@@ -623,7 +653,7 @@ const ClinicCalendarScreen = ({ route, navigation }: ClinicCalendarScreenProps) 
       <ScrollView style={styles.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-            <Ionicons name="chevron-back" size={22} color="#ffffff" />
+            <Ionicons name="chevron-back" size={20} color="#6B7280" />
           </TouchableOpacity>
           <View style={styles.headerTextWrap}>
             <Text style={styles.headerClinic}>{clinicName}</Text>
@@ -784,11 +814,38 @@ const ClinicCalendarScreen = ({ route, navigation }: ClinicCalendarScreenProps) 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#F3F4F6' },
   container: { flex: 1, backgroundColor: 'transparent' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, backgroundColor: '#4f46e5', borderBottomLeftRadius: 14, borderBottomRightRadius: 14, marginBottom: 12, ...Platform.select({ ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.12, shadowRadius: 12 }, android: { elevation: 6 } }) },
-  backButton: { marginRight: 12, padding: 6, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.08)' },
+  header: { 
+    backgroundColor: '#FFFFFF',
+    paddingTop: 50,
+    paddingBottom: 24,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    flexDirection: 'row', 
+    alignItems: 'center'
+  },
+  backButton: { 
+    marginRight: 12, 
+    width: 36,
+    height: 36,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F9FAFB'
+  },
   headerTextWrap: { flex: 1 },
-  headerClinic: { color: '#ffffff', fontSize: 18, fontWeight: '700' },
-  headerSubtitle: { color: 'rgba(255,255,255,0.9)', fontSize: 12, marginTop: 2 },
+  headerClinic: { 
+    color: '#111827', 
+    fontSize: 18, 
+    fontWeight: '500',
+    letterSpacing: -0.2
+  },
+  headerSubtitle: { 
+    color: '#6B7280', 
+    fontSize: 12, 
+    marginTop: 2,
+    fontWeight: '400'
+  },
   calendarCard: { backgroundColor: '#ffffff', marginHorizontal: 16, borderRadius: 12, padding: 10, marginBottom: 14, ...Platform.select({ ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 8 }, android: { elevation: 3 } }) },
   calendar: { borderRadius: 8 },
   legendContainer: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12, paddingTop: 6, borderTopWidth: 1, borderTopColor: '#F3F4F6' },

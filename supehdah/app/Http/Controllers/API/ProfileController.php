@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use App\Models\Appointment;
+use App\Models\PaymentReceipt;
 
 class ProfileController extends Controller
 {
@@ -258,6 +259,99 @@ class ProfileController extends Controller
         ];
 
         return response()->json(['data' => $data]);
+    }
+
+    /**
+     * Get appointment receipt for mobile users
+     * 
+     * @param Request $request
+     * @param int $appointmentId
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function appointmentReceipt(Request $request, $appointmentId)
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        // Find appointment belonging to the user
+        $appointment = Appointment::where('user_id', $user->id)
+            ->where('id', $appointmentId)
+            ->with(['clinic', 'doctor', 'customValues.field'])
+            ->first();
+
+        if (!$appointment) {
+            return response()->json([
+                'message' => 'Appointment not found or you do not have permission to view this receipt.'
+            ], 404);
+        }
+
+        // Check if appointment has a payment receipt
+        $receipt = \App\Models\PaymentReceipt::where('appointment_id', $appointment->id)->first();
+
+        if (!$receipt) {
+            return response()->json([
+                'message' => 'No payment receipt found for this appointment.',
+                'has_receipt' => false,
+                'payment_status' => $appointment->payment_status ?? 'unpaid'
+            ], 404);
+        }
+
+        // Prepare receipt data for mobile
+        $receiptData = [
+            'id' => $receipt->id,
+            'receipt_number' => $receipt->receipt_number,
+            'appointment_id' => $appointment->id,
+            'patient_name' => $receipt->patient_name,
+            'service_description' => $receipt->service_description,
+            'amount' => floatval($receipt->amount),
+            'payment_method' => $receipt->payment_method,
+            'payment_date' => $receipt->payment_date ? $receipt->payment_date->format('Y-m-d H:i:s') : null,
+            'notes' => $receipt->notes,
+            'processed_by' => $receipt->processed_by,
+            'doctor_name' => $receipt->doctor_name,
+            
+            // Clinic information
+            'clinic' => [
+                'name' => $appointment->clinic->clinic_name ?? 'N/A',
+                'address' => $appointment->clinic->address ?? 'N/A',
+                'contact_number' => $appointment->clinic->contact_number ?? 'N/A',
+                'email' => $appointment->clinic->email ?? 'N/A',
+            ],
+            
+            // Appointment details
+            'appointment' => [
+                'date' => $appointment->appointment_date,
+                'time' => $appointment->appointment_time,
+                'status' => $appointment->status,
+                'owner_phone' => $appointment->owner_phone,
+            ],
+            
+            // Custom field values (service details)
+            'service_details' => $appointment->customValues->map(function ($value) {
+                return [
+                    'field' => $value->field->label ?? 'Field',
+                    'value' => is_array($value->value) ? implode(', ', $value->value) : $value->value
+                ];
+            }),
+            
+            // Formatted display data for mobile UI
+            'formatted' => [
+                'amount_display' => '₱' . number_format($receipt->amount, 2),
+                'payment_date_display' => $receipt->payment_date ? $receipt->payment_date->format('F d, Y h:i A') : 'N/A',
+                'appointment_date_display' => $appointment->appointment_date ? \Carbon\Carbon::parse($appointment->appointment_date)->format('F d, Y') : 'N/A',
+                'appointment_time_display' => $appointment->appointment_time ? \Carbon\Carbon::parse($appointment->appointment_time)->format('h:i A') : 'N/A',
+                'payment_method_display' => ucfirst(str_replace('_', ' ', $receipt->payment_method)),
+            ],
+            
+            'has_receipt' => true,
+            'created_at' => $receipt->created_at ? $receipt->created_at->format('Y-m-d H:i:s') : null,
+            'updated_at' => $receipt->updated_at ? $receipt->updated_at->format('Y-m-d H:i:s') : null,
+        ];
+
+        return response()->json([
+            'data' => $receiptData,
+            'message' => 'Receipt retrieved successfully'
+        ]);
     }
 
     /**

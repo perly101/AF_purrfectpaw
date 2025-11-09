@@ -11,6 +11,7 @@ import {
   Alert,
   StatusBar,
   Dimensions,
+  TextInput,
 } from 'react-native';
 import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import { API } from '../src/api';
@@ -48,9 +49,12 @@ type Clinic = {
 export default function AppointmentsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [clinics, setClinics] = React.useState<Clinic[]>([]);
+  const [filteredClinics, setFilteredClinics] = React.useState<Clinic[]>([]);
   const [loading, setLoading] = React.useState<boolean>(false);
   const [refreshing, setRefreshing] = React.useState<boolean>(false);
   const [selectedClinicId, setSelectedClinicId] = React.useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = React.useState<string>('');
+  const [showSearchInput, setShowSearchInput] = React.useState<boolean>(false);
 
   // Base URL (without /api suffix)
   const hostBase = React.useMemo(() => {
@@ -105,6 +109,7 @@ export default function AppointmentsScreen() {
 
         await Promise.all(statusPromises);
         setClinics(updatedClinics);
+        setFilteredClinics(updatedClinics); // Initialize filtered clinics
       }
     } catch (e) {
       console.error('Error fetching clinics:', e);
@@ -129,6 +134,30 @@ export default function AppointmentsScreen() {
       } catch {}
     })();
   }, []);
+
+  // Search filtering function
+  const filterClinics = React.useCallback((query: string) => {
+    if (!query.trim()) {
+      setFilteredClinics(clinics);
+      return;
+    }
+
+    const lowercaseQuery = query.toLowerCase().trim();
+    const filtered = clinics.filter((clinic) => {
+      const nameMatch = clinic.clinic_name?.toLowerCase().includes(lowercaseQuery);
+      const addressMatch = clinic.address?.toLowerCase().includes(lowercaseQuery);
+      const phoneMatch = clinic.contact_number?.includes(query.trim());
+      
+      return nameMatch || addressMatch || phoneMatch;
+    });
+
+    setFilteredClinics(filtered);
+  }, [clinics]);
+
+  // Effect to filter clinics when search query or clinics change
+  React.useEffect(() => {
+    filterClinics(searchQuery);
+  }, [searchQuery, filterClinics]);
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
@@ -231,33 +260,20 @@ export default function AppointmentsScreen() {
 
           <View style={styles.cardFooter}>
             <View style={[styles.cardBadge, isOpen ? styles.openBadge : styles.closedBadge]}>
+              <View style={[styles.statusIndicator, isOpen ? styles.openIndicator : styles.closedIndicator]} />
               <Text style={[styles.cardBadgeText, isOpen ? styles.openText : styles.closedText]}>
                 {isOpen ? 'Open Now' : 'Closed'}
               </Text>
             </View>
 
-            <View style={styles.actionButtonsContainer}>
-              <TouchableOpacity 
-                style={styles.actionButton}
-                onPress={() => handleSelectClinic(item)}
-              >
-                <Text style={styles.actionText}>Select</Text>
-                <MaterialIcons name="arrow-forward-ios" size={12} color={PURPLE} />
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.actionButton, styles.bookButton]}
-                onPress={() => {
-                  navigation.navigate('BookAppointment', {
-                    clinicId: item.id,
-                    clinicName: item.clinic_name
-                  });
-                }}
-              >
-                <Text style={[styles.actionText, styles.bookText]}>Book</Text>
-                <MaterialIcons name="event" size={12} color={PINK} />
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity 
+              style={styles.selectButton}
+              onPress={() => handleSelectClinic(item)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.selectButtonText}>Select Clinic</Text>
+              <MaterialIcons name="arrow-forward" size={16} color={WHITE} />
+            </TouchableOpacity>
           </View>
         </View>
       </TouchableOpacity>
@@ -269,13 +285,50 @@ export default function AppointmentsScreen() {
       <StatusBar backgroundColor={LIGHT} barStyle="dark-content" />
 
       <LinearGradient colors={[WHITE, LIGHT]} style={styles.headerContainer}>
-        <Text style={styles.header}>Available Clinics</Text>
-        <Text style={styles.subheader}>Choose a clinic to continue</Text>
-
-        <View style={styles.searchBar}>
-          <MaterialIcons name="search" size={18} color={GRAY} />
-          <Text style={styles.searchPlaceholder}>Find clinics by name or location</Text>
+        <View style={styles.headerContent}>
+          <Text style={styles.header}>Available Clinics</Text>
+          <Text style={styles.subheader}>Choose a clinic to access services and book appointments</Text>
         </View>
+
+        <TouchableOpacity 
+          style={styles.searchBar}
+          onPress={() => setShowSearchInput(true)}
+          activeOpacity={0.8}
+        >
+          <MaterialIcons name="search" size={20} color={PURPLE} />
+          {showSearchInput ? (
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Find clinics by name or location"
+              placeholderTextColor={GRAY}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoFocus={true}
+              onBlur={() => {
+                if (!searchQuery.trim()) {
+                  setShowSearchInput(false);
+                }
+              }}
+              returnKeyType="search"
+              clearButtonMode="while-editing"
+            />
+          ) : (
+            <Text style={styles.searchPlaceholder}>Find clinics by name or location</Text>
+          )}
+          {searchQuery ? (
+            <TouchableOpacity 
+              onPress={() => {
+                setSearchQuery('');
+                setShowSearchInput(false);
+              }}
+              style={styles.clearButton}
+            >
+              <MaterialIcons name="close" size={18} color={GRAY} />
+            </TouchableOpacity>
+          ) : (
+            <MaterialIcons name="tune" size={18} color={GRAY} />
+          )}
+        </TouchableOpacity>
       </LinearGradient>
 
       {loading && clinics.length === 0 ? (
@@ -285,18 +338,18 @@ export default function AppointmentsScreen() {
         </View>
       ) : (
         <FlatList
-          data={clinics}
+          data={filteredClinics}
           keyExtractor={(item) => String(item.id)}
           numColumns={2}
-          columnWrapperStyle={styles.row}
+          columnWrapperStyle={filteredClinics.length % 2 !== 0 ? null : styles.row}
           contentContainerStyle={styles.listContent}
           renderItem={renderClinicCard}
           ListHeaderComponent={
             <View style={styles.listHeader}>
               <View style={styles.statsContainer}>
                 <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{clinics.length}</Text>
-                  <Text style={styles.statLabel}>Clinics</Text>
+                  <Text style={styles.statValue}>{filteredClinics.length}</Text>
+                  <Text style={styles.statLabel}>{searchQuery ? 'Found' : 'Clinics'}</Text>
                 </View>
                 <View style={styles.statDivider} />
                 <View style={styles.statItem}>
@@ -308,12 +361,36 @@ export default function AppointmentsScreen() {
           }
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
-              <FontAwesome5 name="hospital-alt" size={46} color={GRAY} />
-              <Text style={styles.emptyTitle}>No Clinics Available</Text>
-              <Text style={styles.emptyText}>We couldn't find any clinics at the moment.</Text>
-              <TouchableOpacity style={styles.refreshButton} onPress={onRefresh} activeOpacity={0.8}>
-                <Text style={styles.refreshButtonText}>Refresh</Text>
-              </TouchableOpacity>
+              <FontAwesome5 
+                name={searchQuery ? "search" : "hospital-alt"} 
+                size={46} 
+                color={GRAY} 
+              />
+              <Text style={styles.emptyTitle}>
+                {searchQuery ? 'No Clinics Found' : 'No Clinics Available'}
+              </Text>
+              <Text style={styles.emptyText}>
+                {searchQuery 
+                  ? `No clinics match "${searchQuery}". Try a different search term.`
+                  : 'We couldn\'t find any clinics at the moment.'
+                }
+              </Text>
+              {searchQuery ? (
+                <TouchableOpacity 
+                  style={styles.refreshButton} 
+                  onPress={() => {
+                    setSearchQuery('');
+                    setShowSearchInput(false);
+                  }} 
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.refreshButtonText}>Clear Search</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity style={styles.refreshButton} onPress={onRefresh} activeOpacity={0.8}>
+                  <Text style={styles.refreshButtonText}>Refresh</Text>
+                </TouchableOpacity>
+              )}
             </View>
           }
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PURPLE} colors={[PURPLE, PINK]} />}
@@ -332,64 +409,88 @@ const styles = StyleSheet.create({
 
   headerContainer: {
     paddingTop: 20,
-    paddingBottom: 18,
-    paddingHorizontal: 20,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
-    marginBottom: 10,
-    shadowColor: DARK,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 4,
+    paddingBottom: 20,
+    paddingHorizontal: 24,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    marginBottom: 12,
+    shadowColor: 'rgba(0,0,0,0.08)',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  headerContent: {
+    marginTop: 20,
+    marginBottom: 16,
   },
   header: {
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: 28,
+    fontWeight: '800',
     color: DARK,
-    marginBottom: 4,
-    marginTop: 25,
+    marginBottom: 6,
+    letterSpacing: 0.5,
   },
   subheader: {
-    fontSize: 13,
+    fontSize: 14,
     color: GRAY,
-    marginBottom: 12,
+    lineHeight: 20,
+    fontWeight: '500',
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: WHITE,
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginTop: 6,
-    shadowColor: SHADOW,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginTop: 4,
+    shadowColor: 'rgba(108, 92, 231, 0.15)',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(108, 92, 231, 0.1)',
   },
   searchPlaceholder: {
-    marginLeft: 10,
+    flex: 1,
+    marginLeft: 12,
     fontSize: 14,
     color: GRAY,
+    fontWeight: '500',
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 12,
+    fontSize: 14,
+    color: DARK,
+    fontWeight: '500',
+    paddingVertical: 0, // Remove default padding on iOS
+  },
+  clearButton: {
+    padding: 4,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.05)',
   },
 
   listHeader: {
-    paddingHorizontal: 10,
-    marginBottom: 12,
+    paddingHorizontal: 12,
+    marginBottom: 16,
   },
   statsContainer: {
     flexDirection: 'row',
     backgroundColor: WHITE,
-    borderRadius: 12,
-    paddingVertical: 12,
-    marginHorizontal: 5,
-    shadowColor: SHADOW,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+    borderRadius: 16,
+    paddingVertical: 16,
+    marginHorizontal: 4,
+    shadowColor: 'rgba(0,0,0,0.08)',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.03)',
   },
   statItem: {
     flex: 1,
@@ -397,21 +498,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   statValue: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 22,
+    fontWeight: '800',
     color: PURPLE,
-    marginBottom: 4,
+    marginBottom: 6,
+    letterSpacing: 0.3,
   },
   statLabel: {
     fontSize: 12,
     color: GRAY,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1,
+    fontWeight: '600',
   },
   statDivider: {
     width: 1,
-    height: '60%',
-    backgroundColor: 'rgba(0,0,0,0.06)',
+    height: '70%',
+    backgroundColor: 'rgba(0,0,0,0.08)',
+    alignSelf: 'center',
   },
 
   listContent: {
@@ -477,63 +581,71 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: WHITE,
     width: '48%',
-    borderRadius: 12,
-    marginBottom: 10,
-    shadowColor: SHADOW,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 3,
+    borderRadius: 16,
+    marginBottom: 12,
+    shadowColor: 'rgba(0,0,0,0.08)',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 6,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.02)',
   },
   cardSelected: {
     borderWidth: 2,
-    borderColor: PINK,
-    shadowColor: PINK,
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    elevation: 5,
+    borderColor: PURPLE,
+    shadowColor: PURPLE,
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
+    transform: [{ scale: 1.02 }],
   },
 
   cardImageContainer: {
     position: 'relative',
-    backgroundColor: '#f5f6f8',
+    backgroundColor: '#f8f9fb',
   },
   cardImage: {
     width: '100%',
-    height: 110,
-    backgroundColor: '#f2f2f2',
+    height: 120,
+    backgroundColor: '#f2f4f7',
   },
   placeholderImage: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F0F2F5',
+    backgroundColor: 'rgba(108, 92, 231, 0.05)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.04)',
   },
   selectedOverlay: {
     position: 'absolute',
-    top: 8,
-    right: 8,
+    top: 10,
+    right: 10,
     backgroundColor: PURPLE,
-    width: 34,
-    height: 34,
-    borderRadius: 34 / 2,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: SHADOW,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.12,
-    shadowRadius: 3,
-    elevation: 3,
+    shadowColor: PURPLE,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
+    borderWidth: 2,
+    borderColor: WHITE,
   },
 
   cardContent: {
-    padding: 12,
+    padding: 16,
   },
   cardTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
     color: DARK,
-    marginBottom: 6,
+    marginBottom: 8,
+    letterSpacing: 0.2,
   },
   addressContainer: {
     flexDirection: 'row',
@@ -558,28 +670,47 @@ const styles = StyleSheet.create({
   },
 
   cardFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 8,
-    paddingTop: 8,
+    flexDirection: 'column',
+    marginTop: 12,
+    paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.04)',
+    borderTopColor: 'rgba(0,0,0,0.06)',
   },
   cardBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 999,
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    marginBottom: 10,
+  },
+  statusIndicator: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 6,
   },
   openBadge: {
-    backgroundColor: 'rgba(39,174,96,0.12)',
+    backgroundColor: 'rgba(39,174,96,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(39,174,96,0.2)',
   },
   closedBadge: {
-    backgroundColor: 'rgba(231,76,60,0.08)',
+    backgroundColor: 'rgba(231,76,60,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(231,76,60,0.2)',
+  },
+  openIndicator: {
+    backgroundColor: OPEN_GREEN,
+  },
+  closedIndicator: {
+    backgroundColor: CLOSED_RED,
   },
   cardBadgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
+    letterSpacing: 0.3,
   },
   openText: {
     color: OPEN_GREEN,
@@ -588,26 +719,25 @@ const styles = StyleSheet.create({
     color: CLOSED_RED,
   },
 
-  actionButtonsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    width: '100%',
-  },
-  actionButton: {
+  selectButton: {
+    backgroundColor: PURPLE,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    shadowColor: PURPLE,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  bookButton: {
-    marginLeft: 8,
-  },
-  actionText: {
-    fontSize: 12,
+  selectButtonText: {
+    fontSize: 13,
     fontWeight: '700',
-    color: PURPLE,
+    color: WHITE,
     marginRight: 6,
-  },
-  bookText: {
-    color: PINK,
+    letterSpacing: 0.3,
   },
 });

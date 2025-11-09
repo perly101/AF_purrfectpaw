@@ -60,6 +60,15 @@ protected $fillable = [
     protected $casts = [
         'email_verified_at' => 'datetime',
     ];
+    
+    /**
+     * Get the user's full name
+     */
+    public function getFullNameAttribute()
+    {
+        return trim($this->first_name . ' ' . $this->last_name);
+    }
+    
     // app/Models/User.php
 
 public function clinicInfo()

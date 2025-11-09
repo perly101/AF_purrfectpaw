@@ -196,6 +196,13 @@ Route::middleware(['auth', 'role:clinic'])->group(function () {
         
         // Test notification route
         Route::get('/test-notification', [\App\Http\Controllers\Clinic\TestNotificationController::class, 'testNotification'])->name('notifications.test');
+        
+        // Payment management
+        Route::get('/payments/{appointment}/create', [\App\Http\Controllers\Clinic\PaymentController::class, 'create'])->name('payments.create');
+        Route::post('/payments/{appointment}', [\App\Http\Controllers\Clinic\PaymentController::class, 'store'])->name('payments.store');
+        Route::get('/payments/receipt/{receipt}', [\App\Http\Controllers\Clinic\PaymentController::class, 'receipt'])->name('payments.receipt');
+        Route::get('/payments/summary', [\App\Http\Controllers\Clinic\PaymentController::class, 'summary'])->name('payments.summary');
+        Route::get('/payments/download-report', [\App\Http\Controllers\Clinic\PaymentController::class, 'downloadReport'])->name('payments.download-report');
     });
 });
 

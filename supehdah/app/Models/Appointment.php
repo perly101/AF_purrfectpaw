@@ -16,7 +16,14 @@ class Appointment extends Model
         'status',
         'notes',
         // Keep the physical column name available too
-        'consultation_notes'
+        'consultation_notes',
+        // Payment fields
+        'payment_status',
+        'amount',
+        'payment_method',
+        'receipt_number',
+        'payment_date',
+        'payment_notes'
     ];
     
     // Setting the appropriate date fields according to README specifications
@@ -152,5 +159,54 @@ class Appointment extends Model
     public function patient()
     {
         return $this->belongsTo(self::class, 'id', 'id');
+    }
+    
+    /**
+     * Get the payment receipt for this appointment
+     */
+    public function paymentReceipt()
+    {
+        return $this->hasOne(PaymentReceipt::class);
+    }
+    
+    /**
+     * Check if the appointment is paid
+     */
+    public function isPaid()
+    {
+        return $this->payment_status === 'paid';
+    }
+    
+    /**
+     * Check if the appointment is unpaid
+     */
+    public function isUnpaid()
+    {
+        return $this->payment_status === 'unpaid';
+    }
+    
+    /**
+     * Get payment status badge class
+     */
+    public function getPaymentStatusBadgeClass()
+    {
+        switch ($this->payment_status) {
+            case 'paid':
+                return 'bg-green-100 text-green-800';
+            case 'unpaid':
+                return 'bg-red-100 text-red-800';
+            case 'refunded':
+                return 'bg-gray-100 text-gray-800';
+            default:
+                return 'bg-yellow-100 text-yellow-800';
+        }
+    }
+    
+    /**
+     * Scope to get completed but unpaid appointments
+     */
+    public function scopeCompletedUnpaid($query)
+    {
+        return $query->where('status', 'completed')->where('payment_status', 'unpaid');
     }
 }

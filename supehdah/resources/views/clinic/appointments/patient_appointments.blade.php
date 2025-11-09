@@ -49,11 +49,20 @@
                                         </div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
-                                        <span class="px-2 py-1 text-xs font-semibold rounded-full 
-                                            {{ $appointment->status === 'completed' ? 'bg-green-100 text-green-800' : '' }}
-                                            {{ $appointment->status === 'cancelled' ? 'bg-red-100 text-red-800' : '' }}">
-                                            {{ ucfirst($appointment->status) }}
-                                        </span>
+                                        <div class="flex flex-col space-y-1">
+                                            <span class="px-2 py-1 text-xs font-semibold rounded-full 
+                                                {{ $appointment->status === 'completed' ? 'bg-green-100 text-green-800' : '' }}
+                                                {{ $appointment->status === 'cancelled' ? 'bg-red-100 text-red-800' : '' }}">
+                                                {{ ucfirst($appointment->status) }}
+                                            </span>
+                                            @if($appointment->status === 'completed')
+                                                <span class="px-2 py-1 text-xs font-semibold rounded-full
+                                                    {{ ($appointment->payment_status ?? 'unpaid') === 'paid' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' }}
+                                                ">
+                                                    {{ ucfirst($appointment->payment_status ?? 'Unpaid') }}
+                                                </span>
+                                            @endif
+                                        </div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         @if($appointment->doctor)
@@ -70,9 +79,13 @@
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                                         <a href="{{ route('clinic.appointments.show', $appointment->id) }}" 
                                            class="text-blue-600 hover:text-blue-900">View Details</a>
+                                        @if($appointment->status === 'completed' && ($appointment->payment_status ?? 'unpaid') === 'unpaid')
+                                            <a href="{{ route('clinic.payments.create', $appointment->id) }}" 
+                                               class="text-green-600 hover:text-green-900 ml-2">Process Payment</a>
+                                        @endif
                                     </td>
                                 </tr>
                                 

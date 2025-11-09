@@ -52,6 +52,20 @@
                                             {{ $appointment->status === 'cancelled' ? 'bg-red-100 text-red-800' : '' }}
                                         ">{{ ucfirst($appointment->status) }}</span>
                                     </p>
+                                    @if($appointment->status === 'completed')
+                                    <p class="flex justify-between">
+                                        <span class="text-gray-600">Payment Status:</span>
+                                        <span class="font-medium inline-flex px-2 py-1 text-xs rounded-full
+                                            {{ ($appointment->payment_status ?? 'unpaid') === 'paid' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' }}
+                                        ">{{ ucfirst($appointment->payment_status ?? 'Unpaid') }}</span>
+                                    </p>
+                                    @if($appointment->payment_status === 'paid' && $appointment->receipt_number)
+                                    <p class="flex justify-between">
+                                        <span class="text-gray-600">Receipt Number:</span>
+                                        <span class="font-medium">{{ $appointment->receipt_number }}</span>
+                                    </p>
+                                    @endif
+                                    @endif
                                     <p class="flex justify-between">
                                         <span class="text-gray-600">Assigned Doctor:</span>
                                         <span class="font-medium">{{ $appointment->doctor ? $appointment->doctor->getFullNameAttribute() : 'Not assigned' }}</span>
@@ -152,6 +166,64 @@
                                 </button>
                             </div>
                         </form>
+                    </div>
+                    @endif
+                    
+                    <!-- Payment Processing Section -->
+                    @if($appointment->status === 'completed' && ($appointment->payment_status ?? 'unpaid') === 'unpaid')
+                    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg mb-6">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center">
+                                <div class="flex-shrink-0">
+                                    <svg class="h-6 w-6 text-yellow-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                                    </svg>
+                                </div>
+                                <div class="ml-3">
+                                    <h3 class="text-lg font-medium text-yellow-800">Payment Required</h3>
+                                    <p class="text-sm text-yellow-600">This appointment is completed but payment has not been processed yet.</p>
+                                </div>
+                            </div>
+                            <div class="flex-shrink-0">
+                                <a href="{{ route('clinic.payments.create', $appointment->id) }}" 
+                                   class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md font-medium transition-colors duration-200">
+                                    Process Payment
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    @endif
+                    
+                    <!-- Payment Information Section (if paid) -->
+                    @if($appointment->status === 'completed' && $appointment->payment_status === 'paid')
+                    <div class="bg-green-50 border-l-4 border-green-400 p-4 rounded-lg mb-6">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center">
+                                <div class="flex-shrink-0">
+                                    <svg class="h-6 w-6 text-green-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </div>
+                                <div class="ml-3">
+                                    <h3 class="text-lg font-medium text-green-800">Payment Completed</h3>
+                                    <div class="text-sm text-green-600 space-y-1">
+                                        <p><strong>Amount:</strong> ₱{{ number_format($appointment->amount ?? 0, 2) }}</p>
+                                        <p><strong>Method:</strong> {{ ucfirst(str_replace('_', ' ', $appointment->payment_method ?? '')) }}</p>
+                                        @if($appointment->payment_date)
+                                        <p><strong>Date:</strong> {{ \Carbon\Carbon::parse($appointment->payment_date)->format('M d, Y h:i A') }}</p>
+                                        @endif
+                                    </div>
+                                </div>
+                            </div>
+                            @if($appointment->paymentReceipt)
+                            <div class="flex-shrink-0">
+                                <a href="{{ route('clinic.payments.receipt', $appointment->paymentReceipt->id) }}" 
+                                   class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium transition-colors duration-200">
+                                    View Receipt
+                                </a>
+                            </div>
+                            @endif
+                        </div>
                     </div>
                     @endif
 

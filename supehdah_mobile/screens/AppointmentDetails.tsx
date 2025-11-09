@@ -26,6 +26,7 @@ const COLORS = {
   errorBg: '#FEF2F2',
   info: '#3B82F6',
   infoBg: '#EFF6FF',
+  white: '#FFFFFF',
 };
 
 export default function AppointmentDetails() {
@@ -254,6 +255,26 @@ export default function AppointmentDetails() {
             </View>
           )}
         </View>
+
+        {/* Receipt Button - Only show for completed appointments */}
+        {data.status === 'completed' && (
+          <View style={styles.actionCard}>
+            <View style={styles.cardTitleRow}>
+              <MaterialCommunityIcons name="receipt" size={24} color={COLORS.primary} />
+              <Text style={styles.cardTitle}>Payment Receipt</Text>
+            </View>
+            <TouchableOpacity 
+              style={styles.receiptButton}
+              onPress={() => navigation.navigate('AppointmentReceipt', { appointmentId: data.id })}
+            >
+              <View style={styles.receiptButtonContent}>
+                <MaterialCommunityIcons name="file-document-outline" size={20} color={COLORS.white} />
+                <Text style={styles.receiptButtonText}>View Receipt</Text>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={20} color={COLORS.white} />
+            </TouchableOpacity>
+          </View>
+        )}
 
       </ScrollView>
     </SafeAreaView>
@@ -629,4 +650,42 @@ const styles = StyleSheet.create({
   sectionValue: { color: COLORS.textSecondary, marginTop: 8 },
   empty: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
   emptyText: { marginTop: 12, fontSize: 16, color: COLORS.textMuted },
+
+  // Receipt Button Styles
+  actionCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    padding: 18,
+    marginHorizontal: 16,
+    marginVertical: 8,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  receiptButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    elevation: 2,
+    shadowColor: COLORS.primary,
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  receiptButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  receiptButtonText: {
+    color: COLORS.white,
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
 });
