@@ -254,7 +254,7 @@ export default function HomeScreen() {
         <View style={styles.rowCards}>
           <View style={styles.cardSmall}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.cardTitle}>Upcoming</Text>
+              <Text style={styles.cardTitle}>Appointments</Text>
               <TouchableOpacity onPress={() => navigation.navigate('Appointments')}>
                 <Text style={styles.seeAllText}>View All</Text>
               </TouchableOpacity>
